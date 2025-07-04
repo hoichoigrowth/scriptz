@@ -84,6 +84,7 @@ try:
 except ImportError as e:
     OCR_ERROR_MESSAGE += f"❌ OpenCV import failed: {e}\n"
     print(f"❌ OpenCV import failed: {e}")
+    print("💡 Try installing headless version: pip install opencv-python-headless")
 
 try:
     import numpy as np
