@@ -9,7 +9,7 @@ from datetime import datetime
 import re
 import io
 import hashlib
-from typing import Dict, List, Any, Tuple
+from typing import Dict, List, Any, Tuple, Optional
 
 # Import optional dependencies with error handling
 try:
@@ -60,63 +60,16 @@ try:
 except ImportError:
     PDF_EXTRACT_AVAILABLE = False
 
-# FIX 1: Add OCR support for images - ENHANCED DEBUG VERSION
+# Mistral OCR support - ENHANCED VERSION
+try:
+    from PIL import Image  # Keep for image preview only
+    PIL_AVAILABLE = True
+except ImportError:
+    PIL_AVAILABLE = False
+
+MISTRAL_OCR_AVAILABLE = False
 OCR_AVAILABLE = False
 OCR_ERROR_MESSAGE = ""
-
-try:
-    from PIL import Image
-    print("✅ PIL/Pillow imported successfully")
-except ImportError as e:
-    OCR_ERROR_MESSAGE += f"❌ PIL/Pillow import failed: {e}\n"
-    print(f"❌ PIL/Pillow import failed: {e}")
-
-try:
-    import pytesseract
-    print("✅ pytesseract imported successfully")
-except ImportError as e:
-    OCR_ERROR_MESSAGE += f"❌ pytesseract import failed: {e}\n"
-    print(f"❌ pytesseract import failed: {e}")
-
-try:
-    import cv2
-    print("✅ OpenCV imported successfully")
-except ImportError as e:
-    OCR_ERROR_MESSAGE += f"❌ OpenCV import failed: {e}\n"
-    print(f"❌ OpenCV import failed: {e}")
-    print("💡 Try installing headless version: pip install opencv-python-headless")
-
-try:
-    import numpy as np
-    print("✅ NumPy imported successfully")
-except ImportError as e:
-    OCR_ERROR_MESSAGE += f"❌ NumPy import failed: {e}\n"
-    print(f"❌ NumPy import failed: {e}")
-
-# Set OCR_AVAILABLE to True only if ALL imports succeed
-try:
-    from PIL import Image
-    import pytesseract
-    import cv2
-    import numpy as np
-    OCR_AVAILABLE = True
-    print("✅ All OCR dependencies imported successfully")
-except ImportError as e:
-    OCR_AVAILABLE = False
-    OCR_ERROR_MESSAGE += f"❌ Final OCR import check failed: {e}\n"
-    print(f"❌ Final OCR import check failed: {e}")
-
-# Test Tesseract binary availability
-if OCR_AVAILABLE:
-    try:
-        version = pytesseract.get_tesseract_version()
-        print(f"✅ Tesseract version: {version}")
-    except Exception as e:
-        OCR_AVAILABLE = False
-        OCR_ERROR_MESSAGE += f"❌ Tesseract binary not found: {e}\n"
-        print(f"❌ Tesseract binary not found: {e}")
-        print("💡 Install Tesseract OCR binary from: https://github.com/UB-Mannheim/tesseract/wiki")
-
 
 # Configuration - Optimized for aggressive violation detection
 MAX_CHARS_PER_CHUNK = 3000  # Smaller chunks for better analysis
@@ -206,63 +159,203 @@ def get_script_range(char):
     else:
         return "Other Unicode"
 
-# FIX 3: Add OCR preprocessing for better text extraction
-def preprocess_image_for_ocr(image):
-    """Preprocess image for better OCR results with Bengali text"""
-    if not OCR_AVAILABLE:
-        return image
+# Mistral OCR Functions
+def check_mistral_ocr_availability():
+    """Check if Mistral OCR is available"""
+    global MISTRAL_OCR_AVAILABLE, OCR_AVAILABLE, OCR_ERROR_MESSAGE
+    
+    mistral_key = get_mistral_api_key_with_session()
+    if not mistral_key:
+        OCR_ERROR_MESSAGE = "❌ Mistral API key not configured"
+        MISTRAL_OCR_AVAILABLE = False
+        OCR_AVAILABLE = False
+        return False, "Mistral API key not configured"
+    
+    if not MISTRAL_AVAILABLE:
+        OCR_ERROR_MESSAGE = "❌ requests library not available"
+        MISTRAL_OCR_AVAILABLE = False
+        OCR_AVAILABLE = False
+        return False, "requests library not available"
     
     try:
-        # Convert PIL to OpenCV format
-        opencv_image = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
+        # Test the connection to Mistral API
+        headers = {
+            "Authorization": f"Bearer {mistral_key}"
+        }
         
-        # Enhance image for better OCR
-        gray = cv2.cvtColor(opencv_image, cv2.COLOR_BGR2GRAY)
+        # Make a simple test request to check API availability
+        response = requests.get("https://api.mistral.ai/v1/models", headers=headers, timeout=10)
         
-        # Apply noise reduction
-        denoised = cv2.fastNlMeansDenoising(gray)
-        
-        # Enhance contrast
-        enhanced = cv2.convertScaleAbs(denoised, alpha=1.5, beta=0)
-        
-        # Apply morphological operations for text enhancement
-        kernel = np.ones((1,1), np.uint8)
-        enhanced = cv2.morphologyEx(enhanced, cv2.MORPH_CLOSE, kernel)
-        
-        # Convert back to PIL
-        return Image.fromarray(enhanced)
-        
+        if response.status_code == 200:
+            MISTRAL_OCR_AVAILABLE = True
+            OCR_AVAILABLE = True
+            OCR_ERROR_MESSAGE = ""
+            return True, "Mistral OCR available"
+        elif response.status_code == 401:
+            OCR_ERROR_MESSAGE = "❌ Invalid Mistral API key"
+            MISTRAL_OCR_AVAILABLE = False
+            OCR_AVAILABLE = False
+            return False, "Invalid Mistral API key"
+        elif response.status_code == 403:
+            OCR_ERROR_MESSAGE = "❌ OCR access not enabled for this Mistral account"
+            MISTRAL_OCR_AVAILABLE = False
+            OCR_AVAILABLE = False
+            return False, "OCR access not enabled for this account"
+        else:
+            OCR_ERROR_MESSAGE = f"❌ Mistral API error: {response.status_code}"
+            MISTRAL_OCR_AVAILABLE = False
+            OCR_AVAILABLE = False
+            return False, f"Mistral API error: {response.status_code}"
+            
     except Exception as e:
-        st.warning(f"Image preprocessing failed: {e}")
-        return image
+        OCR_ERROR_MESSAGE = f"❌ Mistral API connection failed: {str(e)}"
+        MISTRAL_OCR_AVAILABLE = False
+        OCR_AVAILABLE = False
+        return False, f"Mistral API connection failed: {str(e)}"
+
+def upload_file_to_mistral(file_data: bytes, filename: str, mistral_key: str) -> Optional[str]:
+    """Upload file to Mistral files endpoint - matches your n8n workflow"""
+    try:
+        url = "https://api.mistral.ai/v1/files"
+        
+        headers = {
+            "Authorization": f"Bearer {mistral_key}"
+        }
+        
+        # Use the same structure as your n8n workflow
+        files = {
+            "file": (filename, file_data, "image/jpeg" if filename.lower().endswith(('.jpg', '.jpeg')) else "image/png")
+        }
+        
+        data = {
+            "purpose": "batch"  # Based on your n8n workflow
+        }
+        
+        response = requests.post(url, headers=headers, files=files, data=data, timeout=60)
+        
+        if response.status_code == 200:
+            result = response.json()
+            file_id = result.get("id")
+            if file_id:
+                st.success(f"✅ File uploaded to Mistral: {file_id}")
+                return file_id
+            else:
+                st.error("❌ No file ID returned from Mistral")
+                return None
+        else:
+            st.error(f"❌ Failed to upload file to Mistral: {response.status_code} - {response.text}")
+            return None
+            
+    except Exception as e:
+        st.error(f"❌ Error uploading file to Mistral: {str(e)}")
+        return None
+
+def get_mistral_ocr_result(file_id: str, mistral_key: str, language: str = "ben+eng") -> Optional[str]:
+    """Get OCR result from Mistral OCR endpoint - matches your n8n workflow"""
+    try:
+        url = "https://api.mistral.ai/v1/ocr"
+        
+        headers = {
+            "Authorization": f"Bearer {mistral_key}",
+            "Content-Type": "application/json"
+        }
+        
+        # Based on your n8n workflow structure
+        payload = {
+            "model": "mistral-ocr-latest",
+            "document": {
+                "type": "document_url", 
+                "document_url": f"{{ ${file_id}.uri }}"  # This matches your n8n parameter
+            },
+            "languages": [language],  # Use languages array as shown in n8n
+            "output_format": "text"
+        }
+        
+        response = requests.post(url, headers=headers, json=payload, timeout=120)
+        
+        if response.status_code == 200:
+            result = response.json()
+            # Extract text from the response
+            extracted_text = ""
+            
+            if "text" in result:
+                extracted_text = result["text"]
+            elif "content" in result:
+                extracted_text = result["content"]
+            elif "extracted_text" in result:
+                extracted_text = result["extracted_text"]
+            elif "result" in result:
+                extracted_text = str(result["result"])
+            else:
+                # Try to find text in nested structure
+                for key, value in result.items():
+                    if isinstance(value, str) and len(value) > 10:
+                        extracted_text = value
+                        break
+                
+                if not extracted_text:
+                    st.warning("⚠️ OCR completed but no text found in response")
+                    st.json(result)  # Show the response structure for debugging
+                    return ""
+            
+            return extracted_text
+        else:
+            st.error(f"❌ Mistral OCR failed: {response.status_code} - {response.text}")
+            return None
+            
+    except Exception as e:
+        st.error(f"❌ Error getting OCR result from Mistral: {str(e)}")
+        return None
+
+def extract_text_with_mistral_ocr(image_file, language: str = "ben+eng") -> str:
+    """Extract text from image using Mistral OCR - main function"""
+    mistral_key = get_mistral_api_key_with_session()
+    if not mistral_key:
+        st.error("❌ Mistral API key not configured for OCR")
+        return ""
+    
+    try:
+        # Get file data
+        if hasattr(image_file, 'getvalue'):
+            file_data = image_file.getvalue()
+            filename = image_file.name
+        else:
+            file_data = image_file
+            filename = "uploaded_image.jpg"
+        
+        st.info(f"📤 Uploading {filename} ({len(file_data)/1024:.1f} KB) to Mistral OCR...")
+        
+        # Step 1: Upload file to Mistral (matches your n8n workflow)
+        with st.spinner("📤 Uploading image to Mistral..."):
+            file_id = upload_file_to_mistral(file_data, filename, mistral_key)
+        
+        if not file_id:
+            st.error("❌ Failed to upload file to Mistral")
+            return ""
+        
+        st.success(f"✅ File uploaded successfully: {file_id}")
+        
+        # Step 2: Get OCR result (matches your n8n workflow)
+        with st.spinner("🔍 Processing OCR with Mistral..."):
+            # Add a small delay to ensure file is processed
+            time.sleep(3)
+            
+            extracted_text = get_mistral_ocr_result(file_id, mistral_key, language)
+        
+        if extracted_text:
+            st.success(f"✅ OCR completed! Extracted {len(extracted_text)} characters")
+            return safe_unicode_text(extracted_text)
+        else:
+            st.error("❌ Failed to extract text from image")
+            return ""
+            
+    except Exception as e:
+        st.error(f"❌ Mistral OCR failed: {str(e)}")
+        return ""
 
 def extract_text_with_ocr(image_file):
-    """Extract text from image using OCR with Bengali support"""
-    if not OCR_AVAILABLE:
-        st.error("OCR not available. Please install PIL, pytesseract, and opencv-python")
-        return ""
-    
-    try:
-        # Load image
-        image = Image.open(image_file)
-        
-        # Preprocess image
-        processed_image = preprocess_image_for_ocr(image)
-        
-        # Configure Tesseract for Bengali + English
-        custom_config = r'--oem 3 --psm 6 -l ben+eng'
-        
-        # Extract text
-        text = pytesseract.image_to_string(processed_image, config=custom_config)
-        
-        # Post-process extracted text
-        text = safe_unicode_text(text)
-        
-        return text
-        
-    except Exception as e:
-        st.error(f"OCR extraction failed: {e}")
-        return ""
+    """Extract text from image using Mistral OCR (replaces pytesseract)"""
+    return extract_text_with_mistral_ocr(image_file)
 
 # S&P Violation Rules - Hybrid Context + Keywords Approach
 VIOLATION_RULES = {
@@ -2006,6 +2099,246 @@ def create_violation_charts(violations):
     
     return fig_severity, fig_types
 
+# Mistral OCR Tab Implementation
+def create_mistral_ocr_tab():
+    """Create OCR tab with Mistral OCR integration"""
+    st.header("🔍 Mistral OCR Analysis")
+    st.markdown("**Extract text from images using Mistral OCR for S&P compliance analysis.**")
+    st.markdown("*🌐 Multi-language Support: Bengali, Hindi, Tamil, Telugu, Gujarati, English*")
+    st.markdown("*🔤 High Accuracy: Cloud-based OCR with advanced text recognition*")
+    st.markdown("*⚡ Fast Processing: No local dependencies, powered by Mistral AI*")
+    st.markdown("*🎯 Optimized: Specifically tuned for Indian language scripts*")
+    
+    # Check Mistral OCR availability
+    mistral_available, mistral_message = check_mistral_ocr_availability()
+    
+    if mistral_available:
+        st.success("✅ Mistral OCR is ready!")
+        
+        # Language selection matching your n8n workflow
+        language_options = {
+            "Bengali + English (Recommended)": "ben+eng",
+            "Hindi + English": "hin+eng", 
+            "Tamil + English": "tam+eng",
+            "Telugu + English": "tel+eng",
+            "Gujarati + English": "guj+eng",
+            "Marathi + English": "mar+eng",
+            "English Only": "eng",
+            "Bengali + Hindi + English": "ben+hin+eng",
+            "All Indian Languages": "all"
+        }
+        
+        selected_language = st.selectbox(
+            "Select OCR Language",
+            options=list(language_options.keys()),
+            index=0,
+            help="Choose the primary language(s) for OCR recognition. Matches your n8n workflow settings."
+        )
+        
+        language_code = language_options[selected_language]
+        st.info(f"🌐 **Language Code:** `{language_code}` (matches n8n workflow parameter)")
+        
+        uploaded_image = st.file_uploader(
+            "Choose an image file",
+            type=['png', 'jpg', 'jpeg', 'bmp', 'tiff', 'webp'],
+            help="Upload an image containing text for Mistral OCR extraction and S&P analysis"
+        )
+        
+        if uploaded_image is not None:
+            st.success(f"✅ Image uploaded: {uploaded_image.name} ({uploaded_image.size/1024:.1f} KB)")
+            
+            # Show image preview
+            if PIL_AVAILABLE:
+                try:
+                    image = Image.open(uploaded_image)
+                    st.image(image, caption="Uploaded Image", use_column_width=True)
+                    
+                    # Show image info
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("Width", f"{image.width} px")
+                    with col2:
+                        st.metric("Height", f"{image.height} px")
+                    with col3:
+                        st.metric("Format", image.format or "Unknown")
+                except Exception as e:
+                    st.warning(f"Could not display image preview: {e}")
+            
+            if st.button("🔍 Extract Text with Mistral OCR", type="primary", key="mistral_ocr_analyze"):
+                # Extract text using Mistral OCR
+                extracted_text = extract_text_with_mistral_ocr(uploaded_image, language_code)
+                
+                if not extracted_text.strip():
+                    st.error("❌ No text could be extracted from the image")
+                    st.info("💡 **Troubleshooting Tips:**")
+                    st.markdown("""
+                    - Ensure the image contains clear, readable text
+                    - Try a higher resolution image
+                    - Check if the selected language matches the text in the image
+                    - Verify the image is not corrupted
+                    """)
+                    return
+                
+                st.success(f"✅ Extracted {len(extracted_text):,} characters")
+                
+                # Show extracted text with language detection
+                detected_language = detect_language(extracted_text)
+                
+                with st.expander("📄 Extracted Text Preview"):
+                    st.write(f"**Detected Language:** {detected_language}")
+                    st.write(f"**OCR Language Setting:** {selected_language}")
+                    st.write(f"**Language Code Used:** `{language_code}`")
+                    st.text_area("Extracted Text", extracted_text, height=300)
+                
+                # Show text statistics
+                unicode_chars = sum(1 for char in extracted_text if ord(char) > 127)
+                bengali_chars = sum(1 for char in extracted_text if '\u0980' <= char <= '\u09FF')
+                hindi_chars = sum(1 for char in extracted_text if '\u0900' <= char <= '\u097F')
+                
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    st.metric("Total Characters", len(extracted_text))
+                with col2:
+                    st.metric("Unicode Characters", unicode_chars)
+                with col3:
+                    st.metric("Bengali Characters", bengali_chars)
+                with col4:
+                    st.metric("Hindi Characters", hindi_chars)
+                
+                # Show OCR quality assessment
+                if unicode_chars > 0:
+                    quality_score = min(100, int((unicode_chars / len(extracted_text)) * 200))
+                    if quality_score > 80:
+                        st.success(f"🎯 **OCR Quality:** Excellent ({quality_score}% Unicode density)")
+                    elif quality_score > 50:
+                        st.info(f"🎯 **OCR Quality:** Good ({quality_score}% Unicode density)")
+                    else:
+                        st.warning(f"🎯 **OCR Quality:** Fair ({quality_score}% Unicode density)")
+                
+                # Analyze extracted text
+                pages_data = [{"page_number": 1, "text": extracted_text, "original_page": 1}]
+                
+                st.header("🤖 Analyzing Extracted Text")
+                analysis = analyze_document(extracted_text, pages_data)
+                
+                violations = analysis.get('violations', [])
+                
+                # Display results
+                display_paste_analysis_results(violations, detected_language, extracted_text)
+                
+    else:
+        st.error(f"❌ Mistral OCR not available: {mistral_message}")
+        
+        # Show setup instructions
+        st.markdown("### 🔧 Setup Instructions")
+        st.markdown("""
+        **To use Mistral OCR (matches your n8n workflow):**
+        1. **Configure Mistral API Key**: Add your Mistral API key in the configuration section above
+        2. **Verify OCR Access**: Ensure your Mistral subscription includes OCR capabilities
+        3. **Test Connection**: Use the test button below to verify setup
+        
+        **Benefits of Mistral OCR:**
+        - 🌐 **Multi-language Support**: Bengali, Hindi, Tamil, Telugu, Gujarati, English
+        - 🔤 **High Accuracy**: Advanced OCR with context understanding
+        - ⚡ **Fast Processing**: Cloud-based processing for quick results  
+        - 📱 **Format Support**: PNG, JPG, JPEG, BMP, TIFF, WebP
+        - 🎯 **No Dependencies**: No local OCR software installation needed
+        - 🔗 **Integrated**: Matches your existing n8n workflow exactly
+        """)
+        
+        # Test connection button
+        if st.button("🧪 Test Mistral OCR Connection"):
+            with st.spinner("Testing Mistral OCR connection..."):
+                success, message = check_mistral_ocr_availability()
+                
+                if success:
+                    st.success(f"✅ {message}")
+                    st.balloons()
+                else:
+                    st.error(f"❌ {message}")
+                    
+                    # Provide specific troubleshooting
+                    if "Invalid API key" in message:
+                        st.info("🔑 Please check your Mistral API key configuration above")
+                    elif "OCR access not enabled" in message:
+                        st.info("📞 Contact Mistral support to enable OCR access in your account")
+                    else:
+                        st.info("🔧 Check your network connection and API configuration")
+
+def update_ocr_status_in_sidebar():
+    """Update OCR status in sidebar with Mistral OCR"""
+    st.markdown("### 🔍 **OCR Support Status**")
+    
+    # Check Mistral OCR availability
+    mistral_available, mistral_message = check_mistral_ocr_availability()
+    
+    if mistral_available:
+        st.success("✅ Mistral OCR: Available")
+        st.write("✓ Bengali + English support")
+        st.write("✓ High accuracy cloud OCR")
+        st.write("✓ No local dependencies needed")
+        st.write("✓ Multi-language support")
+        
+        # Show supported languages
+        with st.expander("🌐 Supported Language Combinations"):
+            st.markdown("""
+            **Primary Combinations:**
+            - `ben+eng` - Bengali + English (recommended)
+            - `hin+eng` - Hindi + English
+            - `tam+eng` - Tamil + English  
+            - `tel+eng` - Telugu + English
+            - `guj+eng` - Gujarati + English
+            - `mar+eng` - Marathi + English
+            - `eng` - English only
+            
+            **Multi-language:**
+            - `ben+hin+eng` - Bengali + Hindi + English
+            - `all` - All supported languages
+            
+            **Note:** Use language codes as shown in your n8n workflow
+            """)
+            
+    else:
+        st.error("❌ Mistral OCR: Not Available")
+        st.write(f"Issue: {mistral_message}")
+        
+        with st.expander("🔧 Setup Instructions"):
+            st.markdown("""
+            **To enable Mistral OCR:**
+            1. ✅ Configure your Mistral API key above
+            2. ✅ Ensure OCR access in your Mistral subscription  
+            3. ✅ Test the connection using the button below
+            
+            **Troubleshooting:**
+            - Verify API key is correct and active
+            - Check that OCR is enabled in your Mistral account
+            - Ensure network connectivity to Mistral API
+            - Contact Mistral support if OCR access needed
+            """)
+        
+        # Show detailed error message
+        if OCR_ERROR_MESSAGE:
+            st.error(OCR_ERROR_MESSAGE)
+
+# Initialize Mistral OCR on startup
+def initialize_mistral_ocr():
+    """Initialize Mistral OCR on app startup"""
+    global MISTRAL_OCR_AVAILABLE, OCR_AVAILABLE
+    
+    # Check Mistral OCR availability
+    success, message = check_mistral_ocr_availability()
+    
+    # Update the global OCR_AVAILABLE flag to use Mistral OCR
+    OCR_AVAILABLE = MISTRAL_OCR_AVAILABLE
+    
+    if success:
+        print("✅ Mistral OCR initialized successfully")
+    else:
+        print(f"❌ Mistral OCR initialization failed: {message}")
+
+# Initialize Mistral OCR
+initialize_mistral_ocr()
+
 def main():
     # Authentication check
     if not authenticate_user():
@@ -2056,7 +2389,7 @@ def main():
     <div class="main-header">
         <h1>🎬 hoichoi S&P Compliance Analyzer</h1>
         <p>Standards & Practices Content Review Platform</p>
-        <p style="font-size: 0.9em; opacity: 0.9;">🔍 Aggressive Detection • 🌐 Enhanced Unicode Support • 🤖 Mistral + OpenAI Integration • 📊 XLSX Export • 24 Guidelines</p>
+        <p style="font-size: 0.9em; opacity: 0.9;">🔍 Aggressive Detection • 🌐 Enhanced Unicode Support • 🤖 Mistral OCR + AI • 📊 XLSX Export • 24 Guidelines</p>
     </div>
     """, unsafe_allow_html=True)
     
@@ -2123,41 +2456,8 @@ def main():
         except Exception as e:
             st.error(f"❌ Character Analysis Error: {e}")
         
-        # OCR status - ENHANCED DEBUG VERSION
-        st.markdown("### 🔍 **OCR Support Status**")
-        if OCR_AVAILABLE:
-            st.success("✅ OCR Support: Available")
-            try:
-                version = pytesseract.get_tesseract_version()
-                st.write(f"✓ Tesseract version: {version}")
-                
-                # Test language support
-                languages = pytesseract.get_languages()
-                if 'ben' in languages:
-                    st.write("✓ Bengali language support: Available")
-                else:
-                    st.warning("⚠️ Bengali language support: Not installed")
-                
-                st.write(f"✓ Supported languages: {', '.join(languages[:10])}...")
-                
-            except Exception as e:
-                st.error(f"❌ Tesseract configuration issue: {e}")
-        else:
-            st.error("❌ OCR Support: Missing")
-            if OCR_ERROR_MESSAGE:
-                with st.expander("🔍 Detailed Error Information"):
-                    st.text(OCR_ERROR_MESSAGE)
-                    st.markdown("""
-                    **Fix Steps:**
-                    1. Install Python packages: `pip install pytesseract opencv-python`
-                    2. Install Tesseract binary:
-                       - Windows: Download from https://github.com/UB-Mannheim/tesseract/wiki
-                       - Ubuntu: `sudo apt install tesseract-ocr tesseract-ocr-ben`
-                       - macOS: `brew install tesseract`
-                    3. Restart your Streamlit app
-                    """)
-            else:
-                st.info("Install required packages: `pip install pytesseract opencv-python`")
+        # OCR status with Mistral OCR
+        update_ocr_status_in_sidebar()
         
         # System status
         st.markdown("### 🔧 **System Components**")
@@ -2219,6 +2519,11 @@ def main():
             - **SOLUTION**: Bengali text shows as [Bengali Text - X chars] in PDF
             - **REASON**: PDF font limitations for complex scripts
             - **WORKAROUND**: Use Excel reports for full Bengali text display
+            
+            **Issue 5: OCR not working**
+            - **SOLUTION**: Now using Mistral OCR (cloud-based)
+            - **BENEFIT**: No local dependencies, better accuracy
+            - **MATCHES**: Your existing n8n workflow exactly
             """)
         
         # Performance recommendations
@@ -2230,6 +2535,7 @@ def main():
         - 🌐 **Unicode**: Use Unicode Test section to verify text handling
         - 🔑 **API Key**: Ensure stable Mistral/OpenAI API key configuration
         - 📊 **Reports**: Excel reports work best for Bengali text display
+        - 🔍 **OCR**: Use Mistral OCR for best language support
         """)
         
         st.divider()
@@ -2279,7 +2585,7 @@ def main():
             mistral_input = st.text_input(
                 "Enter Mistral API Key", 
                 type="password", 
-                help="For language detection and violation analysis",
+                help="For language detection, violation analysis, and OCR",
                 key="mistral_key_input",
                 placeholder="Enter your Mistral API key here"
             )
@@ -2290,7 +2596,7 @@ def main():
     # API Priority explanation
     st.info("""
     **🎯 API Usage Priority:**
-    1. **Mistral API** (Preferred) - Better multilingual support, faster processing
+    1. **Mistral API** (Preferred) - Better multilingual support, OCR capabilities, faster processing
     2. **OpenAI API** (Fallback) - Used if Mistral unavailable
     3. **Character-based Detection** (Final fallback) - No API required
     """)
@@ -2298,7 +2604,7 @@ def main():
     # Use configured APIs
     working_apis = []
     if get_mistral_api_key_with_session():
-        working_apis.append("Mistral")
+        working_apis.append("Mistral (with OCR)")
     if openai_key:
         working_apis.append("OpenAI")
     if not working_apis:
@@ -2312,7 +2618,7 @@ def main():
         st.stop()
     
     # Main tabs for upload vs paste vs OCR
-    tab1, tab2, tab3 = st.tabs(["📤 Upload Document", "📝 Paste Text", "🔍 OCR Analysis"])
+    tab1, tab2, tab3 = st.tabs(["📤 Upload Document", "📝 Paste Text", "🔍 Mistral OCR Analysis"])
     
     with tab1:
         st.header("📤 Upload Document Analysis")
@@ -2470,54 +2776,7 @@ def main():
             display_paste_analysis_results(violations, detected_language, text_input)
     
     with tab3:
-        st.header("🔍 OCR Analysis")
-        st.markdown("**Extract text from images using OCR for S&P compliance analysis.**")
-        st.markdown("*🔤 Bengali OCR: Specialized preprocessing for Bengali text*")
-        st.markdown("*🖼️ Image Enhancement: Noise reduction and contrast enhancement*")
-        st.markdown("*⚡ Fast Processing: Optimized for screenplay images*")
-        
-        if OCR_AVAILABLE:
-            uploaded_image = st.file_uploader(
-                "Choose an image file",
-                type=['png', 'jpg', 'jpeg', 'bmp', 'tiff'],
-                help="Upload an image containing text for OCR extraction and S&P analysis"
-            )
-            
-            if uploaded_image is not None:
-                st.success(f"✅ Image uploaded: {uploaded_image.name} ({uploaded_image.size/1024:.1f} KB)")
-                
-                # Show image preview
-                image = Image.open(uploaded_image)
-                st.image(image, caption="Uploaded Image", use_column_width=True)
-                
-                if st.button("🔍 Extract Text & Analyze", type="primary", key="ocr_analyze"):
-                    with st.spinner("🔤 Extracting text from image using OCR..."):
-                        extracted_text = extract_text_with_ocr(uploaded_image)
-                    
-                    if not extracted_text.strip():
-                        st.error("❌ No text could be extracted from the image")
-                        return
-                    
-                    st.success(f"✅ Extracted {len(extracted_text):,} characters")
-                    
-                    # Show extracted text
-                    with st.expander("📄 Extracted Text Preview"):
-                        st.text(extracted_text[:500] + "..." if len(extracted_text) > 500 else extracted_text)
-                    
-                    # Analyze extracted text
-                    pages_data = [{"page_number": 1, "text": extracted_text, "original_page": 1}]
-                    
-                    st.header("🤖 Analyzing Extracted Text")
-                    analysis = analyze_document(extracted_text, pages_data)
-                    
-                    violations = analysis.get('violations', [])
-                    detected_language = analysis.get('detectedLanguage', 'Unknown')
-                    
-                    # Display results
-                    display_paste_analysis_results(violations, detected_language, extracted_text)
-        else:
-            st.error("❌ OCR functionality not available")
-            st.info("To enable OCR, install the required packages: `pip install pillow pytesseract opencv-python`")
+        create_mistral_ocr_tab()
     
     # Footer with violation rules
     with st.expander("📋 S&P Violation Guidelines Reference (24 Aggressive Detection Rules)"):
@@ -2577,8 +2836,8 @@ def main():
     st.markdown("---")
     st.markdown(f"""
     <div style='text-align: center; color: #666; font-size: 0.9em;'>
-        <p>🎬 hoichoi S&P Compliance System v2.2 | Enhanced Unicode Support | XLSX Export | OCR Support | Reviewed by: {st.session_state.get('user_name', 'Unknown')}</p>
-        <p>🔒 Secure access • 🔍 Aggressive violation detection • 🌐 Bengali/Hindi/Multi-language support • 📊 Full Unicode Excel reports</p>
+        <p>🎬 hoichoi S&P Compliance System v3.0 | Enhanced Unicode Support | Mistral OCR Integration | XLSX Export | Reviewed by: {st.session_state.get('user_name', 'Unknown')}</p>
+        <p>🔒 Secure access • 🔍 Aggressive violation detection • 🌐 Bengali/Hindi/Multi-language support • 📊 Full Unicode Excel reports • 🔍 Cloud OCR</p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -2700,7 +2959,7 @@ def display_analysis_results(violations_data, filename):
         st.balloons()
 
 def display_violation_details(violation, index, detected_language):
-    """Display individual violation details - ENHANCED"""
+    """Display individual violation details with EXACT text snippets - ENHANCED"""
     severity = violation.get('severity', 'low')
     
     if severity == 'critical':
@@ -2713,16 +2972,17 @@ def display_violation_details(violation, index, detected_language):
         st.success(f"🟢 **{violation.get('violationType', 'Unknown')}** (Original Page {violation.get('pageNumber', 'N/A')})")
     
     col_a, col_b = st.columns([1, 1])
+    
     with col_a:
         st.write("**🚨 Violated Text:**")
         violation_text = violation.get("violationText", "N/A")
         
-        # ENHANCED: Show Unicode info
+        # FIXED: Show EXACT text as snippet in quotes - NO truncation
         unicode_count = violation.get('unicodeChars', 0)
         bengali_count = violation.get('bengaliChars', 0)
         
-        display_text = violation_text[:200] + "..." if len(violation_text) > 200 else violation_text
-        st.markdown(f'<div style="background-color: #ffebee; padding: 10px; border-radius: 5px; border-left: 3px solid red;"><b style="color: red;">"{display_text}"</b></div>', unsafe_allow_html=True)
+        # Show exact text in quotes as snippet
+        st.markdown(f'<div style="background-color: #ffebee; padding: 10px; border-radius: 5px; border-left: 3px solid red;"><b style="color: red;">"{violation_text}"</b></div>', unsafe_allow_html=True)
         
         if unicode_count > 0:
             st.write(f"**Unicode Info:** {unicode_count} Unicode chars, {bengali_count} Bengali chars")
@@ -2733,7 +2993,7 @@ def display_violation_details(violation, index, detected_language):
         st.write(f"**🤖 AI Solution ({detected_language}):**")
         ai_solution = violation.get("aiSolution", "N/A")
         
-        # ENHANCED: Show Unicode info for solution
+        # Show Unicode info for solution
         solution_unicode = violation.get('aiSolutionUnicode', 0)
         solution_bengali = violation.get('aiSolutionBengali', 0)
         
@@ -2747,7 +3007,7 @@ def display_violation_details(violation, index, detected_language):
     st.divider()
 
 def display_paste_analysis_results(violations, detected_language, text_input):
-    """Display analysis results for pasted text - ENHANCED"""
+    """Display analysis results for pasted text with EXACT snippets - ENHANCED"""
     st.header(f"📊 Analysis Results ({detected_language})")
     
     # Show text statistics
@@ -2790,25 +3050,39 @@ def display_paste_analysis_results(violations, detected_language, text_input):
             col_a, col_b = st.columns([1, 1])
             
             with col_a:
-                st.markdown("**🚨 Violated Text:**")
-                # Create highlighted version
-                highlighted_context = text_input
-                if violated_text in highlighted_context:
-                    if severity == 'critical':
-                        color = "#ffcdd2"
-                    elif severity == 'high':
-                        color = "#fff3e0"
-                    elif severity == 'medium':
-                        color = "#fffde7"
-                    else:
-                        color = "#f3e5f5"
-                    
-                    highlighted_context = highlighted_context.replace(
-                        violated_text,
-                        f'<span style="background-color: {color}; padding: 2px 4px; border-radius: 3px; font-weight: bold; color: red;">{violated_text}</span>'
-                    )
+                st.markdown("**🚨 Violated Text Snippet:**")
                 
-                st.markdown(f'<div style="background-color: #fafafa; padding: 10px; border-radius: 5px; max-height: 200px; overflow-y: auto; border-left: 3px solid red;">{highlighted_context}</div>', unsafe_allow_html=True)
+                # FIXED: Show exact violated text as snippet in quotes
+                st.markdown(f'<div style="background-color: #ffebee; padding: 10px; border-radius: 5px; border-left: 3px solid red;"><b style="color: red;">"{violated_text}"</b></div>', unsafe_allow_html=True)
+                
+                # Show context around the violation (optional)
+                if len(text_input) > len(violated_text):
+                    # Find the position of violated text in the input
+                    pos = text_input.find(violated_text)
+                    if pos != -1:
+                        # Show 50 characters before and after for context
+                        start = max(0, pos - 50)
+                        end = min(len(text_input), pos + len(violated_text) + 50)
+                        context = text_input[start:end]
+                        
+                        # Highlight the violated text within the context
+                        if severity == 'critical':
+                            color = "#ffcdd2"
+                        elif severity == 'high':
+                            color = "#fff3e0"
+                        elif severity == 'medium':
+                            color = "#fffde7"
+                        else:
+                            color = "#f3e5f5"
+                        
+                        highlighted_context = context.replace(
+                            violated_text,
+                            f'<span style="background-color: {color}; padding: 2px 4px; border-radius: 3px; font-weight: bold; color: red;">{violated_text}</span>'
+                        )
+                        
+                        st.markdown("**📄 Context:**")
+                        st.markdown(f'<div style="background-color: #fafafa; padding: 10px; border-radius: 5px; max-height: 150px; overflow-y: auto; border-left: 3px solid #ccc; font-size: 0.9em;">{highlighted_context}</div>', unsafe_allow_html=True)
+                
                 st.markdown(f"**Why this violates S&P:** {violation.get('explanation', 'N/A')}")
             
             with col_b:
