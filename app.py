@@ -1,4 +1,23 @@
-import streamlit as st
+def create_analysis_prompt():
+    """Create aggressive violation detection prompt for comprehensive script analysis"""
+    
+    return """You are an S&P Compliance Reviewer for hoichoi. Your job is to ACTIVELY FIND and FLAG violations in this screenplay/script content. Be thorough and aggressive in detecting violations - err on the side of flagging rather than missing violations.
+
+ANALYZE EVERYTHING: Dialogues, scene descriptions, action lines, character names, props, settings, visual elements, transitions, and any other screenplay content.
+
+🎯 FIND VIOLATIONS IN THESE 24 AREAS:
+
+1. **National Anthem Commercial Use** - Any use of Indian national anthem for commercial/promotional purposes
+2. **Personal Information** - Real phone numbers, addresses, emails, license plates, actual photos
+3. **Competitor Platform Promotion** - Any mention of Netflix, Amazon Prime, Hotstar, Disney+, Zee5, Sony Liv, or other streaming platforms
+4. **National Flag/Emblem Misuse** - Improper use of Indian flag, national symbols, or emblems as props/costumes
+5. **National Symbol Distortion** - Incorrect Indian map, distorted national symbols
+6. **Hurtful Real References** - Negative references to real people, celebrities, organizations, sports teams
+7. **Graphic Self-Harm/Suicide** - Detailed self-harm methods, explicit suicide scenes
+8. **Acid Attack Scenes** - Any depiction of acid attacks
+9. **Weapon/Bomb Instructions** - Detailed instructions for making weapons or explosives
+10. **Harmful Product Instructions** - Using household products like phenyl for harm
+11. **Religious Footwear** - Wearing shoes in temples, near idols,import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -1644,7 +1663,8 @@ def display_paste_analysis_results(violations, detected_language, text_input):
         st.error(f"🚨 Found {len(violations)} violations in your text!")
         
         # Show violations with exact context and AI solutions
-        st.subheader("🔍 Violated Strings with AI Solutions")
+        st.subheader("🔍 Violated Content with AI Solutions")
+        st.markdown("*Detected using hybrid analysis: keyword detection + contextual understanding*")
         
         for i, violation in enumerate(violations, 1):
             severity = violation.get('severity', 'low')
