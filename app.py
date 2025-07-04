@@ -58,126 +58,150 @@ MAX_TOKENS_OUTPUT = 1000
 CHUNK_DELAY = 1
 MAX_RETRIES = 3
 
-# S&P Violation Rules - Context-Based (No Keywords)
+# S&P Violation Rules - Hybrid Context + Keywords Approach
 VIOLATION_RULES = {
     "National_Anthem_Misuse": {
         "description": "Misuse of National Anthem for commercial use",
         "context": "Any commercial or promotional use of the Indian National Anthem, including background music, jingles, or promotional content",
+        "keywords": ["national anthem", "jana gana mana", "commercial", "advertisement", "promotional", "jingle", "background music"],
         "severity": "critical"
     },
     "Personal_Information_Exposure": {
         "description": "Use of real personal information without consent (address, phone, email, license plate, photo)",
         "context": "Display of actual personal details, real addresses, working phone numbers, genuine email addresses, actual license plates, or real photographs of individuals",
+        "keywords": ["phone number", "mobile number", "address", "email", "license plate", "personal photo", "real name", "contact details", "personal information"],
         "severity": "high"
     },
     "OTT_Platform_Promotion": {
         "description": "Promotion of any OTT or TV channel other than hoichoi",
         "context": "Any mention, promotion, or positive reference to competing streaming platforms, TV channels, or digital content providers",
+        "keywords": ["netflix", "amazon prime", "hotstar", "zee5", "sony liv", "tv channel", "streaming platform", "digital platform", "ott platform", "prime video", "disney+"],
         "severity": "high"
     },
     "National_Emblem_Misuse": {
         "description": "Misuse of national emblems/assets as props; improper use of the Indian Flag",
         "context": "Using national flag, emblem, or symbols as costumes, props, decoration, or in any manner that violates the Flag Code of India",
+        "keywords": ["indian flag", "tricolor", "tiranga", "ashoka chakra", "national emblem", "flag code", "national symbol", "emblem", "coat of arms"],
         "severity": "critical"
     },
     "National_Symbol_Distortion": {
         "description": "Distortion of national symbols/emblems or Indian map",
         "context": "Incorrect representation, alteration, or distortion of national symbols, emblems, or the geographical boundaries of India",
+        "keywords": ["indian map", "national symbol", "emblem distortion", "flag distortion", "map distortion", "symbol alteration", "geographical boundaries"],
         "severity": "critical"
     },
     "Hurtful_References": {
         "description": "Hurtful references to real people/groups (football clubs, authors, etc.)",
         "context": "Negative, derogatory, or offensive references to real individuals, organizations, sports teams, or identifiable groups",
+        "keywords": ["real person", "football club", "author", "celebrity", "public figure", "organization", "sports team", "derogatory", "offensive"],
         "severity": "medium"
     },
     "Self_Harm_Graphic_Content": {
         "description": "Graphic/self-harm or suicide attempts (must be suggestive, not detailed)",
         "context": "Detailed depiction of self-harm methods, explicit suicide attempts, or graphic content that could be instructional rather than suggestive",
+        "keywords": ["suicide", "self-harm", "cutting", "hanging", "graphic violence", "self-injury", "suicide attempt", "harm oneself", "end life"],
         "severity": "critical"
     },
     "Acid_Attack_Depiction": {
         "description": "Depiction of acid attacks",
         "context": "Any portrayal of acid attacks, including preparation, execution, or aftermath, regardless of context",
+        "keywords": ["acid attack", "acid throwing", "chemical burn", "disfigurement", "acid", "corrosive", "chemical attack"],
         "severity": "critical"
     },
     "Bomb_Weapon_Instructions": {
         "description": "Detailed instructions for making bombs, using weapons, or harmful tools",
         "context": "Step-by-step instructions, detailed explanations, or educational content about creating explosives, weapons, or harmful devices",
+        "keywords": ["bomb making", "weapon instructions", "explosive", "harmful tools", "explosive device", "bomb recipe", "weapon tutorial"],
         "severity": "critical"
     },
     "Harmful_Product_Instructions": {
         "description": "Instructions or product mentions encouraging harm (e.g., using phenyl to commit suicide)",
         "context": "Content that suggests or instructs on using household products, chemicals, or substances for self-harm or harm to others",
+        "keywords": ["phenyl", "poison", "harmful chemicals", "toxic substances", "household poison", "chemical harm", "toxic product"],
         "severity": "critical"
     },
     "Religious_Footwear_Context": {
         "description": "Wearing footwear in religious contexts or near idols",
         "context": "Characters wearing shoes or footwear inside temples, near religious idols, or in sacred spaces where it's culturally inappropriate",
+        "keywords": ["shoes", "footwear", "temple", "idol", "religious place", "shrine", "sacred space", "sandals", "boots"],
         "severity": "high"
     },
     "Buddha_Idol_Misuse": {
         "description": "Inappropriate use/display of Buddha idols/pictures on props/clothing",
         "context": "Using Buddha's image or Buddhist symbols on clothing, accessories, or in inappropriate contexts that show disrespect",
+        "keywords": ["buddha", "buddhist", "idol", "religious image", "clothing", "t-shirt", "accessory", "buddha statue", "buddhist symbol"],
         "severity": "high"
     },
     "Religious_Mockery": {
         "description": "Mockery of religious facts or symbols",
         "context": "Content that ridicules, mocks, or shows disrespect toward religious beliefs, practices, symbols, or sacred texts",
+        "keywords": ["religious mockery", "sacred", "holy", "religious symbol", "faith", "mock", "ridicule", "disrespect", "blasphemy"],
         "severity": "critical"
     },
     "Caste_Religion_References": {
         "description": "Use of proverbs/colloquialisms that reference caste, religion, or community",
         "context": "Language that reinforces caste hierarchies, religious stereotypes, or discriminatory attitudes toward specific communities",
+        "keywords": ["caste", "brahmin", "dalit", "community", "religious slur", "caste system", "untouchable", "higher caste", "lower caste"],
         "severity": "high"
     },
     "Social_Evils_Promotion": {
         "description": "Promotion of social evils (child marriage, dowry, son preference, etc.)",
         "context": "Content that normalizes, promotes, or presents harmful social practices in a positive light without showing consequences",
+        "keywords": ["child marriage", "dowry", "son preference", "female infanticide", "social evil", "harmful practice", "discrimination"],
         "severity": "critical"
     },
     "Unauthorized_Branding": {
         "description": "Unauthorized branding/endorsement; brand names must be blurred",
         "context": "Visible brand logos, product names, or commercial endorsements without proper clearance or blurring",
+        "keywords": ["brand name", "logo", "trademark", "product placement", "endorsement", "commercial brand", "brand logo", "product name"],
         "severity": "medium"
     },
     "Credit_List_Changes": {
         "description": "Unapproved or post-deadline changes in the credit list",
         "context": "Modifications to cast, crew, or production credits after final approval or without proper authorization",
+        "keywords": ["credits", "cast", "crew", "production team", "acknowledgment", "credit list", "cast list", "crew list"],
         "severity": "medium"
     },
     "Alcohol_Cigarette_Brands": {
         "description": "Display of alcohol/cigarette brands/logos without marketing team approval",
         "context": "Visible alcohol or tobacco brand names, logos, or products without proper marketing clearance",
+        "keywords": ["alcohol brand", "cigarette brand", "tobacco", "liquor", "beer", "wine", "whiskey", "cigarette logo", "tobacco brand"],
         "severity": "high"
     },
     "Smoking_Disclaimer_Missing": {
         "description": "Absence of 'Smoking Kills' message during smoking scenes",
         "context": "Smoking scenes without appropriate health warnings or disclaimers as required by regulations",
+        "keywords": ["smoking", "cigarette", "tobacco", "disclaimer", "warning", "smoking kills", "health warning", "tobacco warning"],
         "severity": "medium"
     },
     "Content_Disclaimer_Missing": {
         "description": "Missing special disclaimers for violent, gory, or sexually explicit content",
         "context": "Content requiring viewer discretion or age-appropriate warnings without proper disclaimers",
+        "keywords": ["violence", "gore", "sexual content", "explicit", "disclaimer", "viewer discretion", "age appropriate", "content warning"],
         "severity": "medium"
     },
     "Unapproved_Endorsements": {
         "description": "Unapproved endorsements or acknowledgments in end credits",
         "context": "Thank you messages, acknowledgments, or endorsements in credits that haven't been approved by the content team",
+        "keywords": ["endorsement", "acknowledgment", "credits", "sponsor", "thanks", "end credits", "acknowledgement", "special thanks"],
         "severity": "medium"
     },
     "Animal_Harm_Depiction": {
         "description": "Depiction of harm or killing of animals during filming",
         "context": "Content showing actual harm to animals during production, cruelty to animals, or realistic depictions of animal suffering",
+        "keywords": ["animal harm", "animal killing", "cruelty", "abuse", "violence", "animal cruelty", "animal suffering", "harm animals"],
         "severity": "critical"
     },
     "Child_Adult_Behavior": {
         "description": "Child actors shown behaving like adults or speaking mature dialogue",
         "context": "Child characters using adult language, exhibiting mature behavior, or being placed in age-inappropriate situations",
+        "keywords": ["child actor", "mature dialogue", "adult behavior", "inappropriate", "child character", "adult language", "age inappropriate"],
         "severity": "high"
     },
     "Child_Abuse_Content": {
         "description": "Any form of child abuse—physical, sexual, or psychological",
         "context": "Content depicting, suggesting, or normalizing any form of abuse toward children, including physical, emotional, or sexual abuse",
+        "keywords": ["child abuse", "physical abuse", "sexual abuse", "psychological abuse", "child harm", "abuse child", "child violence"],
         "severity": "critical"
     }
 }
@@ -509,7 +533,7 @@ def has_page_break(para):
         return False
 
 def generate_ai_solution(violation_text, violation_type, explanation, detected_language, api_key):
-    """Generate AI solution for the violation in the detected language based on specific S&P guidelines"""
+    """Generate AI solution for the violation in the detected language based on hybrid analysis"""
     if not OPENAI_AVAILABLE or not api_key:
         return "AI solution generation not available"
     
@@ -531,12 +555,16 @@ def generate_ai_solution(violation_text, violation_type, explanation, detected_l
             "Self_Harm_Graphic_Content": "Make suggestive rather than explicit; focus on emotional impact, not graphic details",
             "Acid_Attack_Depiction": "Remove or significantly tone down; use off-screen treatment",
             "Child_Adult_Behavior": "Rewrite dialogue age-appropriately; ensure child actors behave naturally",
-            "Child_Abuse_Content": "Remove completely; find alternative plot devices"
+            "Child_Abuse_Content": "Remove completely; find alternative plot devices",
+            "Unauthorized_Branding": "Blur visible brand names and logos; use generic alternatives",
+            "Alcohol_Cigarette_Brands": "Blur alcohol/tobacco brands; use generic packaging",
+            "Smoking_Disclaimer_Missing": "Add 'Smoking Kills' disclaimer during smoking scenes",
+            "Animal_Harm_Depiction": "Remove animal harm scenes; use CGI or off-screen treatment"
         }
         
         specific_guidance = guideline_context.get(violation_type, "Revise content to comply with broadcasting standards")
         
-        prompt = f"""You are an expert content editor for hoichoi digital platform. Generate a compliant revision for this S&P violation.
+        prompt = f"""You are an expert content editor for hoichoi digital platform. Generate a compliant revision for this S&P violation detected through hybrid analysis (keywords + context).
 
 VIOLATION DETAILS:
 - Type: {violation_type}
@@ -599,101 +627,100 @@ def chunk_text(text, max_chars=MAX_CHARS_PER_CHUNK):
     return chunks
 
 def create_analysis_prompt():
-    """Create context-driven S&P compliance analysis prompt"""
+    """Create hybrid context + keywords S&P compliance analysis prompt"""
     
-    return """You are a strict Standards & Practices (S&P) Compliance Reviewer for hoichoi digital content platform. You are reviewing a screenplay or script to identify potential violations of content policies based on CONTEXT and MEANING, not just keywords.
+    # Create keyword reference for the AI
+    keyword_reference = []
+    for rule_name, rule_data in VIOLATION_RULES.items():
+        keyword_reference.append(f"- {rule_name}: {rule_data['description']}")
+        keyword_reference.append(f"  Context: {rule_data['context']}")
+        keyword_reference.append(f"  Keywords: {', '.join(rule_data['keywords'])}")
+        keyword_reference.append(f"  Severity: {rule_data['severity']}")
+        keyword_reference.append("")
+    
+    keyword_ref_str = "\n".join(keyword_reference)
+    
+    return f"""You are a strict Standards & Practices (S&P) Compliance Reviewer for hoichoi digital content platform. You are reviewing a screenplay or script using a HYBRID APPROACH that combines both KEYWORD DETECTION and CONTEXTUAL ANALYSIS for comprehensive violation detection.
 
-This script may include dialogues, scene descriptions, and screenplay elements, and may be written in English or another language. Your task is to read the entire script carefully and understand the CONTEXT, INTENT, and IMPLICATIONS of each scene and dialogue.
+🎯 HYBRID ANALYSIS APPROACH:
+1. **KEYWORD SCANNING**: Use provided keywords to quickly identify potential violations
+2. **CONTEXTUAL ANALYSIS**: Analyze the meaning, intent, and cultural appropriateness of the content
+3. **COMBINED VALIDATION**: Confirm violations using both keyword presence AND contextual understanding
+4. **COMPREHENSIVE COVERAGE**: Detect both obvious (keyword-based) and subtle (context-based) violations
 
-🎯 CONTEXT-BASED ANALYSIS APPROACH:
-• Focus on the MEANING and CONTEXT of content, not just specific words
-• Understand the INTENT behind dialogue and actions
-• Consider CULTURAL SENSITIVITY and APPROPRIATENESS
-• Look for SUBTLE VIOLATIONS that might not use obvious keywords
-• Analyze the OVERALL IMPACT and MESSAGE being conveyed
+📋 VIOLATION DETECTION GUIDELINES:
+{keyword_ref_str}
 
-🎯 24 Guidelines for S&P Violation Detection:
+🧠 ANALYSIS METHODOLOGY:
 
-1. **National Anthem Misuse**: Any commercial or promotional use of the Indian National Anthem, including background music, jingles, or promotional content
+**STEP 1: KEYWORD DETECTION**
+- Scan for provided keywords as initial flags
+- Keywords help identify potential violation areas quickly
+- Use as starting points for deeper analysis
 
-2. **Personal Information Exposure**: Display of actual personal details, real addresses, working phone numbers, genuine email addresses, actual license plates, or real photographs of individuals
+**STEP 2: CONTEXTUAL ANALYSIS**
+- Understand the MEANING and INTENT behind the content
+- Consider CULTURAL SENSITIVITY and appropriateness
+- Analyze the OVERALL IMPACT and MESSAGE
+- Look for SUBTLE VIOLATIONS that might not contain obvious keywords
+- Consider the CONTEXT in which words/actions appear
 
-3. **OTT Platform Promotion**: Any mention, promotion, or positive reference to competing streaming platforms, TV channels, or digital content providers
+**STEP 3: VALIDATION**
+- Combine keyword findings with contextual understanding
+- Flag violations that meet BOTH criteria where applicable
+- Flag context-based violations even without keywords
+- Ensure cultural appropriateness and sensitivity
 
-4. **National Emblem Misuse**: Using national flag, emblem, or symbols as costumes, props, decoration, or in any manner that violates the Flag Code of India
+**EXAMPLES OF HYBRID DETECTION:**
 
-5. **National Symbol Distortion**: Incorrect representation, alteration, or distortion of national symbols, emblems, or the geographical boundaries of India
+*Keyword + Context Example:*
+Text: "He walked into the temple wearing his boots"
+- Keywords: "temple", "boots" → Potential Religious_Footwear_Context violation
+- Context: Culturally inappropriate behavior in religious space → CONFIRMED VIOLATION
 
-6. **Hurtful References**: Negative, derogatory, or offensive references to real individuals, organizations, sports teams, or identifiable groups
+*Context-Only Example:*
+Text: "People like him don't belong in our society"
+- Keywords: None directly matching
+- Context: Discriminatory language suggesting caste/community bias → CONFIRMED VIOLATION (Caste_Religion_References)
 
-7. **Self-Harm Graphic Content**: Detailed depiction of self-harm methods, explicit suicide attempts, or graphic content that could be instructional rather than suggestive
+*Keyword False Positive Example:*
+Text: "The temple in the movie set was beautiful"
+- Keywords: "temple" → Potential flag
+- Context: Describing a film set, not actual religious space → NO VIOLATION
 
-8. **Acid Attack Depiction**: Any portrayal of acid attacks, including preparation, execution, or aftermath, regardless of context
-
-9. **Bomb/Weapon Instructions**: Step-by-step instructions, detailed explanations, or educational content about creating explosives, weapons, or harmful devices
-
-10. **Harmful Product Instructions**: Content that suggests or instructs on using household products, chemicals, or substances for self-harm or harm to others
-
-11. **Religious Footwear Context**: Characters wearing shoes or footwear inside temples, near religious idols, or in sacred spaces where it's culturally inappropriate
-
-12. **Buddha Idol Misuse**: Using Buddha's image or Buddhist symbols on clothing, accessories, or in inappropriate contexts that show disrespect
-
-13. **Religious Mockery**: Content that ridicules, mocks, or shows disrespect toward religious beliefs, practices, symbols, or sacred texts
-
-14. **Caste/Religion References**: Language that reinforces caste hierarchies, religious stereotypes, or discriminatory attitudes toward specific communities
-
-15. **Social Evils Promotion**: Content that normalizes, promotes, or presents harmful social practices in a positive light without showing consequences
-
-16. **Unauthorized Branding**: Visible brand logos, product names, or commercial endorsements without proper clearance or blurring
-
-17. **Credit List Changes**: Modifications to cast, crew, or production credits after final approval or without proper authorization
-
-18. **Alcohol/Cigarette Brands**: Visible alcohol or tobacco brand names, logos, or products without proper marketing clearance
-
-19. **Smoking Disclaimer Missing**: Smoking scenes without appropriate health warnings or disclaimers as required by regulations
-
-20. **Content Disclaimer Missing**: Content requiring viewer discretion or age-appropriate warnings without proper disclaimers
-
-21. **Unapproved Endorsements**: Thank you messages, acknowledgments, or endorsements in credits that haven't been approved by the content team
-
-22. **Animal Harm Depiction**: Content showing actual harm to animals during production, cruelty to animals, or realistic depictions of animal suffering
-
-23. **Child Adult Behavior**: Child characters using adult language, exhibiting mature behavior, or being placed in age-inappropriate situations
-
-24. **Child Abuse Content**: Content depicting, suggesting, or normalizing any form of abuse toward children, including physical, emotional, or sexual abuse
-
-🧠 CRITICAL ANALYSIS INSTRUCTIONS:
-• **CONTEXT IS KING**: Understand the situation, cultural context, and implications
-• **LOOK BEYOND KEYWORDS**: A violation might not use obvious terms but still violate the spirit of the guideline
-• **CONSIDER SUBTLETY**: Some violations are implied or suggested rather than explicit
-• **CULTURAL SENSITIVITY**: Understand Indian cultural norms and sensitivities
-• **INTENT MATTERS**: Consider what message the content is conveying
-• **NO FALSE POSITIVES**: Only flag genuine violations that clearly match the guidelines
-• **EXACT TEXT EXTRACTION**: Copy the violating text EXACTLY as it appears
-• **COMPREHENSIVE REVIEW**: Analyze ALL elements - dialogue, scene descriptions, actions, character names, transitions, visual cues
+🎯 CRITICAL ANALYSIS INSTRUCTIONS:
+• **DUAL VALIDATION**: Use both keywords AND context for comprehensive detection
+• **CULTURAL INTELLIGENCE**: Understand Indian cultural norms and sensitivities
+• **INTENT RECOGNITION**: Detect problematic content based on meaning and purpose
+• **COMPREHENSIVE COVERAGE**: Catch both obvious and subtle violations
+• **NO FALSE POSITIVES**: Validate keyword flags with contextual analysis
+• **NO FALSE NEGATIVES**: Detect context-based violations even without keywords
+• **EXACT TEXT EXTRACTION**: Copy violating text EXACTLY as it appears
+• **COMPLETE REVIEW**: Analyze dialogue, scene descriptions, actions, character names, transitions, visual cues
 
 For each violation found:
-• Highlight the exact line(s) or passage(s) from the script
-• Identify the specific violation type from the 24 guidelines above
-• Explain WHY it violates the rule based on context and meaning
-• Consider the overall impact and cultural appropriateness
+• Extract the exact text that violates the guideline
+• Identify the specific violation type from the 24 categories
+• Explain WHY it violates based on BOTH keyword presence and contextual analysis
+• Provide culturally appropriate remediation suggestions
 
 Return ONLY valid JSON format:
-{
+{{
   "violations": [
-    {
+    {{
       "violationText": "EXACT text from script preserving all formatting",
       "violationType": "Specific guideline category (e.g., National_Anthem_Misuse, Personal_Information_Exposure, etc.)",
-      "explanation": "Detailed explanation of why this violates the specific guideline based on context and meaning",
+      "explanation": "Detailed explanation combining keyword detection and contextual analysis of why this violates the guideline",
       "suggestedAction": "Specific remediation needed",
-      "severity": "critical|high|medium|low"
-    }
+      "severity": "critical|high|medium|low",
+      "detectionMethod": "keyword|context|hybrid"
+    }}
   ]
-}
+}}
 
-If no violations are found, return: {"violations": []}
+If no violations are found, return: {{"violations": []}}
 
-Remember: Focus on CONTEXT, MEANING, and CULTURAL APPROPRIATENESS, not just keyword matching."""
+Remember: Use BOTH keyword detection for quick identification AND contextual analysis for comprehensive understanding. This hybrid approach ensures maximum accuracy and coverage."""
 
 def analyze_chunk(chunk, chunk_num, total_chunks, api_key):
     """Analyze single chunk with OpenAI"""
@@ -776,7 +803,7 @@ def analyze_document(text, pages_data, api_key):
     
     # Detect language first
     detected_language = detect_language(text)
-    st.info(f"🌐 **Content Language:** {detected_language} | 🎯 **Analysis Method:** Context-Based (Not Keywords) | 📋 **Coverage:** Complete Screenplay Elements")
+    st.info(f"🌐 **Content Language:** {detected_language} | 🔍 **Analysis Method:** Hybrid (Keywords + Context) | 📋 **Coverage:** Complete Screenplay Elements")
     
     chunks = chunk_text(text)
     all_violations = []
@@ -1283,7 +1310,7 @@ def main():
     <div class="main-header">
         <h1>🎬 hoichoi S&P Compliance Analyzer</h1>
         <p>Standards & Practices Content Review Platform</p>
-        <p style="font-size: 0.9em; opacity: 0.9;">🎯 Context-Based Analysis • 24 Guidelines • Multi-language Support • Comprehensive Screenplay Review</p>
+        <p style="font-size: 0.9em; opacity: 0.9;">🔍 Hybrid Analysis: Keywords + Context • 24 Guidelines • Multi-language Support • Comprehensive Screenplay Review</p>
     </div>
     """, unsafe_allow_html=True)
     
@@ -1357,8 +1384,8 @@ def main():
     
     with tab1:
         st.header("📤 Upload Document Analysis")
-        st.markdown("**Upload your screenplay/script for intelligent context-based S&P compliance review.**")
-        st.markdown("*🎯 Context-Driven Analysis: Understanding meaning, intent, and cultural appropriateness beyond keyword matching*")
+        st.markdown("**Upload your screenplay/script for comprehensive hybrid S&P compliance review.**")
+        st.markdown("*🔍 Hybrid Analysis: Combines keyword detection for quick identification + contextual analysis for comprehensive understanding*")
         st.markdown("*📝 Comprehensive Coverage: Dialogues, Scene Descriptions, Action Lines, Character Names, Transitions, Visual Cues*")
         
         # Show current analysis if available
@@ -1409,14 +1436,14 @@ def main():
     
     with tab2:
         st.header("📝 Paste Text Analysis")
-        st.markdown("**Paste your screenplay content for intelligent context-based S&P compliance review.**")
-        st.markdown("*🎯 Context-Driven Analysis: Understanding meaning, intent, and cultural sensitivity*")
-        st.markdown("*📝 Comprehensive Review: All screenplay elements analyzed for context and appropriateness*")
+        st.markdown("**Paste your screenplay content for comprehensive hybrid S&P compliance review.**")
+        st.markdown("*🔍 Hybrid Analysis: Keyword detection + contextual understanding for maximum accuracy*")
+        st.markdown("*📝 Comprehensive Review: All screenplay elements analyzed for violations and cultural appropriateness*")
         
         text_input = st.text_area(
             "Paste your screenplay/script content here",
             height=300,
-            placeholder="Paste your screenplay content here for intelligent context-based S&P compliance analysis...\n\nExample:\nINT. LIVING ROOM - DAY\nRAJ sits on the sofa, smoking a cigarette.\nRAJ: (to himself) This reminds me of that Netflix show...\n\nOur AI analyzes context, meaning, and cultural appropriateness - not just keywords!"
+            placeholder="Paste your screenplay content here for hybrid S&P compliance analysis...\n\nExample:\nINT. LIVING ROOM - DAY\nRAJ sits on the sofa, smoking a cigarette.\nRAJ: (to himself) This reminds me of that Netflix show...\n\nOur hybrid AI uses both keyword detection and context analysis for comprehensive violation detection!"
         )
         
         if text_input and st.button("🔍 Analyze Text", type="primary", key="paste_analyze"):
@@ -1434,51 +1461,40 @@ def main():
             display_paste_analysis_results(violations, detected_language, text_input)
     
     # Footer with violation rules
-    with st.expander("📋 S&P Violation Guidelines Reference (24 Context-Based Rules)"):
+    with st.expander("📋 S&P Violation Guidelines Reference (24 Hybrid Context + Keywords Rules)"):
         st.markdown("### 🎯 hoichoi Standards & Practices Guidelines")
-        st.markdown("**Our analysis focuses on CONTEXT and MEANING, not just keywords. Each guideline is evaluated based on cultural sensitivity, intent, and appropriateness.**")
+        st.markdown("**Our analysis uses a HYBRID APPROACH combining keyword detection for quick identification and contextual analysis for comprehensive understanding.**")
         st.markdown("---")
         
-        guidelines = [
-            ("1. National Anthem Misuse", "Any commercial or promotional use of the Indian National Anthem", "critical"),
-            ("2. Personal Information Exposure", "Display of actual personal details, real addresses, working phone numbers, genuine email addresses", "high"),
-            ("3. OTT Platform Promotion", "Any mention, promotion, or positive reference to competing streaming platforms", "high"),
-            ("4. National Emblem Misuse", "Using national flag, emblem, or symbols as costumes, props, decoration, or violating Flag Code", "critical"),
-            ("5. National Symbol Distortion", "Incorrect representation, alteration, or distortion of national symbols or Indian map", "critical"),
-            ("6. Hurtful References", "Negative, derogatory, or offensive references to real individuals, organizations, or groups", "medium"),
-            ("7. Self-Harm Graphic Content", "Detailed depiction of self-harm methods that could be instructional rather than suggestive", "critical"),
-            ("8. Acid Attack Depiction", "Any portrayal of acid attacks, including preparation, execution, or aftermath", "critical"),
-            ("9. Bomb/Weapon Instructions", "Step-by-step instructions or educational content about creating explosives or weapons", "critical"),
-            ("10. Harmful Product Instructions", "Content suggesting use of household products, chemicals, or substances for harm", "critical"),
-            ("11. Religious Footwear Context", "Characters wearing footwear inside temples, near religious idols, or in sacred spaces", "high"),
-            ("12. Buddha Idol Misuse", "Using Buddha's image or Buddhist symbols on clothing or in inappropriate contexts", "high"),
-            ("13. Religious Mockery", "Content that ridicules, mocks, or shows disrespect toward religious beliefs or symbols", "critical"),
-            ("14. Caste/Religion References", "Language that reinforces caste hierarchies, religious stereotypes, or discriminatory attitudes", "high"),
-            ("15. Social Evils Promotion", "Content that normalizes harmful social practices without showing consequences", "critical"),
-            ("16. Unauthorized Branding", "Visible brand logos, product names, or commercial endorsements without clearance", "medium"),
-            ("17. Credit List Changes", "Modifications to cast, crew, or production credits after final approval", "medium"),
-            ("18. Alcohol/Cigarette Brands", "Visible alcohol or tobacco brand names, logos, or products without marketing clearance", "high"),
-            ("19. Smoking Disclaimer Missing", "Smoking scenes without appropriate health warnings or disclaimers", "medium"),
-            ("20. Content Disclaimer Missing", "Content requiring viewer discretion warnings without proper disclaimers", "medium"),
-            ("21. Unapproved Endorsements", "Acknowledgments or endorsements in credits that haven't been approved", "medium"),
-            ("22. Animal Harm Depiction", "Content showing actual harm to animals during production or realistic animal suffering", "critical"),
-            ("23. Child Adult Behavior", "Child characters using adult language or exhibiting mature behavior inappropriately", "high"),
-            ("24. Child Abuse Content", "Content depicting, suggesting, or normalizing any form of abuse toward children", "critical")
-        ]
-        
-        for title, description, severity in guidelines:
+        for rule_name, rule_data in VIOLATION_RULES.items():
+            severity = rule_data['severity']
             if severity == "critical":
-                st.error(f"🔴 **{title}**")
+                st.error(f"🔴 **{rule_name.replace('_', ' ')}**")
             elif severity == "high":
-                st.warning(f"🟠 **{title}**")
+                st.warning(f"🟠 **{rule_name.replace('_', ' ')}**")
             else:
-                st.info(f"🟡 **{title}**")
+                st.info(f"🟡 **{rule_name.replace('_', ' ')}**")
             
-            st.markdown(f"*{description}*")
-            st.markdown("")
+            st.markdown(f"**Description:** {rule_data['description']}")
+            st.markdown(f"**Context:** {rule_data['context']}")
+            st.markdown(f"**Keywords:** {', '.join(rule_data['keywords'])}")
+            st.markdown("---")
         
-        st.markdown("---")
-        st.markdown("**🎯 Context-Based Analysis:** Our AI analyzes content based on meaning, cultural context, and intent - not just keyword matching.")
+        st.markdown("### 🔍 **Hybrid Analysis Method**")
+        st.markdown("""
+        **Step 1: Keyword Detection** - Quick identification of potential violations using targeted keywords
+        
+        **Step 2: Context Analysis** - Deep understanding of meaning, intent, and cultural appropriateness
+        
+        **Step 3: Validation** - Combining both approaches for accurate violation detection
+        
+        **Benefits:**
+        - ✅ **No False Negatives**: Catches subtle violations without obvious keywords
+        - ✅ **No False Positives**: Validates keyword flags with contextual analysis
+        - ✅ **Comprehensive Coverage**: Detects both obvious and nuanced violations
+        - ✅ **Cultural Intelligence**: Understands Indian cultural norms and sensitivities
+        """)
+        
         st.markdown("**📝 Comprehensive Review:** Covers dialogue, scene directions, actions, character names, transitions, and visual cues.")
         st.markdown("**🌐 Cultural Sensitivity:** Understands Indian cultural norms and broadcasting standards.")
     
@@ -1486,8 +1502,8 @@ def main():
     st.markdown("---")
     st.markdown(f"""
     <div style='text-align: center; color: #666; font-size: 0.9em;'>
-        <p>🎬 hoichoi S&P Compliance System v2.0 | Context-Based Analysis | Reviewed by: {st.session_state.get('user_name', 'Unknown')}</p>
-        <p>🔒 Secure access for authorized personnel only | 🎯 Intelligent context analysis | 🌐 Multi-language support</p>
+        <p>🎬 hoichoi S&P Compliance System v2.0 | Hybrid Analysis (Keywords + Context) | Reviewed by: {st.session_state.get('user_name', 'Unknown')}</p>
+        <p>🔒 Secure access for authorized personnel only | 🔍 Comprehensive hybrid analysis | 🌐 Multi-language support</p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -1529,6 +1545,7 @@ def display_analysis_results(violations_data, filename):
         
         # Violation details with AI solutions
         st.subheader(f"🚨 Violations with AI Solutions ({detected_language})")
+        st.markdown("*Detected using hybrid analysis: keyword detection + contextual understanding*")
         
         for i, violation in enumerate(violations[:10]):  # Show first 10
             display_violation_details(violation, i+1, detected_language)
