@@ -58,56 +58,126 @@ MAX_TOKENS_OUTPUT = 1000
 CHUNK_DELAY = 1
 MAX_RETRIES = 3
 
-# S&P Violation Rules
+# S&P Violation Rules - Context-Based (No Keywords)
 VIOLATION_RULES = {
-    "National_Symbols_Anthem": {
-        "description": "Improper use of national symbols, anthem, flag, or government emblems",
-        "keywords": ["national anthem", "flag", "tricolor", "ashoka chakra", "government logo"],
+    "National_Anthem_Misuse": {
+        "description": "Misuse of National Anthem for commercial use",
+        "context": "Any commercial or promotional use of the Indian National Anthem, including background music, jingles, or promotional content",
         "severity": "critical"
     },
-    "PI_Data_Brand_References": {
-        "description": "Personal information exposure, unauthorized brand references, trademark violations",
-        "keywords": ["personal data", "phone number", "address", "brand name", "trademark"],
+    "Personal_Information_Exposure": {
+        "description": "Use of real personal information without consent (address, phone, email, license plate, photo)",
+        "context": "Display of actual personal details, real addresses, working phone numbers, genuine email addresses, actual license plates, or real photographs of individuals",
         "severity": "high"
     },
-    "Credits_Endorsements": {
-        "description": "Missing credits, unauthorized endorsements, celebrity impersonation",
-        "keywords": ["credit", "endorsement", "celebrity", "sponsor", "testimonial"],
+    "OTT_Platform_Promotion": {
+        "description": "Promotion of any OTT or TV channel other than hoichoi",
+        "context": "Any mention, promotion, or positive reference to competing streaming platforms, TV channels, or digital content providers",
+        "severity": "high"
+    },
+    "National_Emblem_Misuse": {
+        "description": "Misuse of national emblems/assets as props; improper use of the Indian Flag",
+        "context": "Using national flag, emblem, or symbols as costumes, props, decoration, or in any manner that violates the Flag Code of India",
+        "severity": "critical"
+    },
+    "National_Symbol_Distortion": {
+        "description": "Distortion of national symbols/emblems or Indian map",
+        "context": "Incorrect representation, alteration, or distortion of national symbols, emblems, or the geographical boundaries of India",
+        "severity": "critical"
+    },
+    "Hurtful_References": {
+        "description": "Hurtful references to real people/groups (football clubs, authors, etc.)",
+        "context": "Negative, derogatory, or offensive references to real individuals, organizations, sports teams, or identifiable groups",
         "severity": "medium"
     },
-    "Religious_Cultural_Sensitivity": {
-        "description": "Religious insensitivity, cultural stereotypes, communal bias, offensive content",
-        "keywords": ["religion", "god", "hindu", "muslim", "christian", "sikh", "culture", "caste"],
+    "Self_Harm_Graphic_Content": {
+        "description": "Graphic/self-harm or suicide attempts (must be suggestive, not detailed)",
+        "context": "Detailed depiction of self-harm methods, explicit suicide attempts, or graphic content that could be instructional rather than suggestive",
         "severity": "critical"
     },
-    "Animal_Welfare": {
-        "description": "Animal cruelty, unsafe animal handling, wildlife protection violations",
-        "keywords": ["animal", "cruelty", "pet", "wildlife", "zoo", "circus"],
+    "Acid_Attack_Depiction": {
+        "description": "Depiction of acid attacks",
+        "context": "Any portrayal of acid attacks, including preparation, execution, or aftermath, regardless of context",
+        "severity": "critical"
+    },
+    "Bomb_Weapon_Instructions": {
+        "description": "Detailed instructions for making bombs, using weapons, or harmful tools",
+        "context": "Step-by-step instructions, detailed explanations, or educational content about creating explosives, weapons, or harmful devices",
+        "severity": "critical"
+    },
+    "Harmful_Product_Instructions": {
+        "description": "Instructions or product mentions encouraging harm (e.g., using phenyl to commit suicide)",
+        "context": "Content that suggests or instructs on using household products, chemicals, or substances for self-harm or harm to others",
+        "severity": "critical"
+    },
+    "Religious_Footwear_Context": {
+        "description": "Wearing footwear in religious contexts or near idols",
+        "context": "Characters wearing shoes or footwear inside temples, near religious idols, or in sacred spaces where it's culturally inappropriate",
         "severity": "high"
     },
-    "Disclaimers_Warnings": {
-        "description": "Missing disclaimers, inadequate warnings, safety information gaps",
-        "keywords": ["disclaimer", "warning", "caution", "safety", "risk"],
+    "Buddha_Idol_Misuse": {
+        "description": "Inappropriate use/display of Buddha idols/pictures on props/clothing",
+        "context": "Using Buddha's image or Buddhist symbols on clothing, accessories, or in inappropriate contexts that show disrespect",
+        "severity": "high"
+    },
+    "Religious_Mockery": {
+        "description": "Mockery of religious facts or symbols",
+        "context": "Content that ridicules, mocks, or shows disrespect toward religious beliefs, practices, symbols, or sacred texts",
+        "severity": "critical"
+    },
+    "Caste_Religion_References": {
+        "description": "Use of proverbs/colloquialisms that reference caste, religion, or community",
+        "context": "Language that reinforces caste hierarchies, religious stereotypes, or discriminatory attitudes toward specific communities",
+        "severity": "high"
+    },
+    "Social_Evils_Promotion": {
+        "description": "Promotion of social evils (child marriage, dowry, son preference, etc.)",
+        "context": "Content that normalizes, promotes, or presents harmful social practices in a positive light without showing consequences",
+        "severity": "critical"
+    },
+    "Unauthorized_Branding": {
+        "description": "Unauthorized branding/endorsement; brand names must be blurred",
+        "context": "Visible brand logos, product names, or commercial endorsements without proper clearance or blurring",
         "severity": "medium"
     },
-    "Smoking_Alcohol_Social_Evils": {
-        "description": "Glorification of smoking, alcohol abuse, gambling, or other social evils",
-        "keywords": ["smoke", "cigarette", "alcohol", "drink", "gambling", "bet", "drugs"],
+    "Credit_List_Changes": {
+        "description": "Unapproved or post-deadline changes in the credit list",
+        "context": "Modifications to cast, crew, or production credits after final approval or without proper authorization",
+        "severity": "medium"
+    },
+    "Alcohol_Cigarette_Brands": {
+        "description": "Display of alcohol/cigarette brands/logos without marketing team approval",
+        "context": "Visible alcohol or tobacco brand names, logos, or products without proper marketing clearance",
         "severity": "high"
     },
-    "Child_Safety": {
-        "description": "Content harmful to minors, inappropriate child representation, safety risks",
-        "keywords": ["child", "minor", "kid", "school", "unsafe", "inappropriate"],
+    "Smoking_Disclaimer_Missing": {
+        "description": "Absence of 'Smoking Kills' message during smoking scenes",
+        "context": "Smoking scenes without appropriate health warnings or disclaimers as required by regulations",
+        "severity": "medium"
+    },
+    "Content_Disclaimer_Missing": {
+        "description": "Missing special disclaimers for violent, gory, or sexually explicit content",
+        "context": "Content requiring viewer discretion or age-appropriate warnings without proper disclaimers",
+        "severity": "medium"
+    },
+    "Unapproved_Endorsements": {
+        "description": "Unapproved endorsements or acknowledgments in end credits",
+        "context": "Thank you messages, acknowledgments, or endorsements in credits that haven't been approved by the content team",
+        "severity": "medium"
+    },
+    "Animal_Harm_Depiction": {
+        "description": "Depiction of harm or killing of animals during filming",
+        "context": "Content showing actual harm to animals during production, cruelty to animals, or realistic depictions of animal suffering",
         "severity": "critical"
     },
-    "Violence_Self_Harm": {
-        "description": "Graphic violence, self-harm content, suicide references, dangerous activities",
-        "keywords": ["violence", "fight", "blood", "suicide", "self-harm", "dangerous", "weapon"],
-        "severity": "critical"
+    "Child_Adult_Behavior": {
+        "description": "Child actors shown behaving like adults or speaking mature dialogue",
+        "context": "Child characters using adult language, exhibiting mature behavior, or being placed in age-inappropriate situations",
+        "severity": "high"
     },
-    "Substances_Addiction": {
-        "description": "Drug use promotion, addiction glorification, substance abuse normalization",
-        "keywords": ["drugs", "addiction", "substance", "abuse", "dealer", "high", "overdose"],
+    "Child_Abuse_Content": {
+        "description": "Any form of child abuse—physical, sexual, or psychological",
+        "context": "Content depicting, suggesting, or normalizing any form of abuse toward children, including physical, emotional, or sexual abuse",
         "severity": "critical"
     }
 }
@@ -439,37 +509,58 @@ def has_page_break(para):
         return False
 
 def generate_ai_solution(violation_text, violation_type, explanation, detected_language, api_key):
-    """Generate AI solution for the violation in the detected language"""
+    """Generate AI solution for the violation in the detected language based on specific S&P guidelines"""
     if not OPENAI_AVAILABLE or not api_key:
         return "AI solution generation not available"
     
     try:
         client = OpenAI(api_key=api_key)
         
-        prompt = f"""You are an expert content editor for Indian digital media. Generate a revised version of the problematic content that resolves the S&P violation while maintaining the creative intent.
+        # Map violation type to specific guidance
+        guideline_context = {
+            "National_Anthem_Misuse": "Remove commercial use of national anthem; use instrumental version or replace with original music",
+            "Personal_Information_Exposure": "Blur/mask personal information; use fictional phone numbers and addresses",
+            "OTT_Platform_Promotion": "Remove references to competing platforms; replace with generic terms or hoichoi references",
+            "National_Emblem_Misuse": "Remove improper flag usage; ensure respectful display according to Flag Code of India",
+            "National_Symbol_Distortion": "Restore accurate representation of national symbols and Indian map",
+            "Religious_Footwear_Context": "Remove footwear in religious settings; ensure actors are barefoot near idols/temples",
+            "Buddha_Idol_Misuse": "Remove Buddha images from clothing/inappropriate contexts; use respectfully or remove",
+            "Religious_Mockery": "Rewrite dialogue to be respectful of religious beliefs and symbols",
+            "Caste_Religion_References": "Replace with neutral language; avoid caste/community-specific terms",
+            "Social_Evils_Promotion": "Reframe to show negative consequences; don't glorify harmful practices",
+            "Self_Harm_Graphic_Content": "Make suggestive rather than explicit; focus on emotional impact, not graphic details",
+            "Acid_Attack_Depiction": "Remove or significantly tone down; use off-screen treatment",
+            "Child_Adult_Behavior": "Rewrite dialogue age-appropriately; ensure child actors behave naturally",
+            "Child_Abuse_Content": "Remove completely; find alternative plot devices"
+        }
+        
+        specific_guidance = guideline_context.get(violation_type, "Revise content to comply with broadcasting standards")
+        
+        prompt = f"""You are an expert content editor for hoichoi digital platform. Generate a compliant revision for this S&P violation.
 
 VIOLATION DETAILS:
 - Type: {violation_type}
-- Problematic Text: "{violation_text}"
+- Problematic Content: "{violation_text}"
 - Issue: {explanation}
 - Content Language: {detected_language}
+- Specific Guidance: {specific_guidance}
 
 INSTRUCTIONS:
-1. Provide a revised version that eliminates the S&P violation
-2. Maintain the original tone and creative intent
+1. Provide a revised version that eliminates the S&P violation completely
+2. Maintain the original creative intent where possible
 3. Keep the same language as the original content ({detected_language})
-4. Ensure the solution is culturally appropriate for Indian audiences
-5. Make minimal changes while fixing the compliance issue
+4. Ensure the solution is appropriate for Indian digital content standards
+5. Make the minimum necessary changes to achieve compliance
 
-Return ONLY the revised text solution, nothing else."""
+Return ONLY the revised content solution, nothing else."""
         
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "You are an expert content editor specializing in S&P compliance for Indian digital media."},
+                {"role": "system", "content": "You are an expert content editor specializing in S&P compliance for hoichoi digital platform. Provide practical, implementable solutions."},
                 {"role": "user", "content": prompt}
             ],
-            max_tokens=200,
+            max_tokens=250,
             temperature=0.3
         )
         
@@ -508,39 +599,101 @@ def chunk_text(text, max_chars=MAX_CHARS_PER_CHUNK):
     return chunks
 
 def create_analysis_prompt():
-    """Create S&P compliance analysis prompt"""
-    violation_types = []
-    for v_type, details in VIOLATION_RULES.items():
-        violation_types.append(f"- {v_type.replace('_', ' ')}: {details['description']} (Severity: {details['severity']})")
+    """Create context-driven S&P compliance analysis prompt"""
     
-    violation_types_str = "\n".join(violation_types)
-    
-    return f"""You are an expert S&P compliance reviewer for Indian digital media. Analyze this content chunk for violations including ALL screenplay elements (scene headings, character names, dialogue, action descriptions, transitions).
+    return """You are a strict Standards & Practices (S&P) Compliance Reviewer for hoichoi digital content platform. You are reviewing a screenplay or script to identify potential violations of content policies based on CONTEXT and MEANING, not just keywords.
 
-VIOLATION CATEGORIES (choose most appropriate):
-{violation_types_str}
+This script may include dialogues, scene descriptions, and screenplay elements, and may be written in English or another language. Your task is to read the entire script carefully and understand the CONTEXT, INTENT, and IMPLICATIONS of each scene and dialogue.
 
-CRITICAL INSTRUCTIONS:
-1. Copy violation text EXACTLY as it appears
-2. Extract meaningful violations only (minimum 10 characters)
-3. Choose appropriate category and severity
-4. Analyze ALL content types: dialogue, action, scene descriptions, character names, transitions
-5. Focus on substantial policy violations
+🎯 CONTEXT-BASED ANALYSIS APPROACH:
+• Focus on the MEANING and CONTEXT of content, not just specific words
+• Understand the INTENT behind dialogue and actions
+• Consider CULTURAL SENSITIVITY and APPROPRIATENESS
+• Look for SUBTLE VIOLATIONS that might not use obvious keywords
+• Analyze the OVERALL IMPACT and MESSAGE being conveyed
 
-Return ONLY valid JSON:
-{{
+🎯 24 Guidelines for S&P Violation Detection:
+
+1. **National Anthem Misuse**: Any commercial or promotional use of the Indian National Anthem, including background music, jingles, or promotional content
+
+2. **Personal Information Exposure**: Display of actual personal details, real addresses, working phone numbers, genuine email addresses, actual license plates, or real photographs of individuals
+
+3. **OTT Platform Promotion**: Any mention, promotion, or positive reference to competing streaming platforms, TV channels, or digital content providers
+
+4. **National Emblem Misuse**: Using national flag, emblem, or symbols as costumes, props, decoration, or in any manner that violates the Flag Code of India
+
+5. **National Symbol Distortion**: Incorrect representation, alteration, or distortion of national symbols, emblems, or the geographical boundaries of India
+
+6. **Hurtful References**: Negative, derogatory, or offensive references to real individuals, organizations, sports teams, or identifiable groups
+
+7. **Self-Harm Graphic Content**: Detailed depiction of self-harm methods, explicit suicide attempts, or graphic content that could be instructional rather than suggestive
+
+8. **Acid Attack Depiction**: Any portrayal of acid attacks, including preparation, execution, or aftermath, regardless of context
+
+9. **Bomb/Weapon Instructions**: Step-by-step instructions, detailed explanations, or educational content about creating explosives, weapons, or harmful devices
+
+10. **Harmful Product Instructions**: Content that suggests or instructs on using household products, chemicals, or substances for self-harm or harm to others
+
+11. **Religious Footwear Context**: Characters wearing shoes or footwear inside temples, near religious idols, or in sacred spaces where it's culturally inappropriate
+
+12. **Buddha Idol Misuse**: Using Buddha's image or Buddhist symbols on clothing, accessories, or in inappropriate contexts that show disrespect
+
+13. **Religious Mockery**: Content that ridicules, mocks, or shows disrespect toward religious beliefs, practices, symbols, or sacred texts
+
+14. **Caste/Religion References**: Language that reinforces caste hierarchies, religious stereotypes, or discriminatory attitudes toward specific communities
+
+15. **Social Evils Promotion**: Content that normalizes, promotes, or presents harmful social practices in a positive light without showing consequences
+
+16. **Unauthorized Branding**: Visible brand logos, product names, or commercial endorsements without proper clearance or blurring
+
+17. **Credit List Changes**: Modifications to cast, crew, or production credits after final approval or without proper authorization
+
+18. **Alcohol/Cigarette Brands**: Visible alcohol or tobacco brand names, logos, or products without proper marketing clearance
+
+19. **Smoking Disclaimer Missing**: Smoking scenes without appropriate health warnings or disclaimers as required by regulations
+
+20. **Content Disclaimer Missing**: Content requiring viewer discretion or age-appropriate warnings without proper disclaimers
+
+21. **Unapproved Endorsements**: Thank you messages, acknowledgments, or endorsements in credits that haven't been approved by the content team
+
+22. **Animal Harm Depiction**: Content showing actual harm to animals during production, cruelty to animals, or realistic depictions of animal suffering
+
+23. **Child Adult Behavior**: Child characters using adult language, exhibiting mature behavior, or being placed in age-inappropriate situations
+
+24. **Child Abuse Content**: Content depicting, suggesting, or normalizing any form of abuse toward children, including physical, emotional, or sexual abuse
+
+🧠 CRITICAL ANALYSIS INSTRUCTIONS:
+• **CONTEXT IS KING**: Understand the situation, cultural context, and implications
+• **LOOK BEYOND KEYWORDS**: A violation might not use obvious terms but still violate the spirit of the guideline
+• **CONSIDER SUBTLETY**: Some violations are implied or suggested rather than explicit
+• **CULTURAL SENSITIVITY**: Understand Indian cultural norms and sensitivities
+• **INTENT MATTERS**: Consider what message the content is conveying
+• **NO FALSE POSITIVES**: Only flag genuine violations that clearly match the guidelines
+• **EXACT TEXT EXTRACTION**: Copy the violating text EXACTLY as it appears
+• **COMPREHENSIVE REVIEW**: Analyze ALL elements - dialogue, scene descriptions, actions, character names, transitions, visual cues
+
+For each violation found:
+• Highlight the exact line(s) or passage(s) from the script
+• Identify the specific violation type from the 24 guidelines above
+• Explain WHY it violates the rule based on context and meaning
+• Consider the overall impact and cultural appropriateness
+
+Return ONLY valid JSON format:
+{
   "violations": [
-    {{
-      "violationText": "EXACT text preserving all formatting",
-      "violationType": "Category name from list above",
-      "explanation": "why this violates broadcasting standards",
-      "suggestedAction": "specific remediation needed",
+    {
+      "violationText": "EXACT text from script preserving all formatting",
+      "violationType": "Specific guideline category (e.g., National_Anthem_Misuse, Personal_Information_Exposure, etc.)",
+      "explanation": "Detailed explanation of why this violates the specific guideline based on context and meaning",
+      "suggestedAction": "Specific remediation needed",
       "severity": "critical|high|medium|low"
-    }}
+    }
   ]
-}}
+}
 
-If no violations found, return: {{"violations": []}}"""
+If no violations are found, return: {"violations": []}
+
+Remember: Focus on CONTEXT, MEANING, and CULTURAL APPROPRIATENESS, not just keyword matching."""
 
 def analyze_chunk(chunk, chunk_num, total_chunks, api_key):
     """Analyze single chunk with OpenAI"""
@@ -623,7 +776,7 @@ def analyze_document(text, pages_data, api_key):
     
     # Detect language first
     detected_language = detect_language(text)
-    st.info(f"🌐 Detected content language: **{detected_language}**")
+    st.info(f"🌐 **Content Language:** {detected_language} | 🎯 **Analysis Method:** Context-Based (Not Keywords) | 📋 **Coverage:** Complete Screenplay Elements")
     
     chunks = chunk_text(text)
     all_violations = []
@@ -1130,6 +1283,7 @@ def main():
     <div class="main-header">
         <h1>🎬 hoichoi S&P Compliance Analyzer</h1>
         <p>Standards & Practices Content Review Platform</p>
+        <p style="font-size: 0.9em; opacity: 0.9;">🎯 Context-Based Analysis • 24 Guidelines • Multi-language Support • Comprehensive Screenplay Review</p>
     </div>
     """, unsafe_allow_html=True)
     
@@ -1203,6 +1357,9 @@ def main():
     
     with tab1:
         st.header("📤 Upload Document Analysis")
+        st.markdown("**Upload your screenplay/script for intelligent context-based S&P compliance review.**")
+        st.markdown("*🎯 Context-Driven Analysis: Understanding meaning, intent, and cultural appropriateness beyond keyword matching*")
+        st.markdown("*📝 Comprehensive Coverage: Dialogues, Scene Descriptions, Action Lines, Character Names, Transitions, Visual Cues*")
         
         # Show current analysis if available
         if st.session_state.analysis_complete and st.session_state.violations_data:
@@ -1252,11 +1409,14 @@ def main():
     
     with tab2:
         st.header("📝 Paste Text Analysis")
+        st.markdown("**Paste your screenplay content for intelligent context-based S&P compliance review.**")
+        st.markdown("*🎯 Context-Driven Analysis: Understanding meaning, intent, and cultural sensitivity*")
+        st.markdown("*📝 Comprehensive Review: All screenplay elements analyzed for context and appropriateness*")
         
         text_input = st.text_area(
-            "Paste your content here",
+            "Paste your screenplay/script content here",
             height=300,
-            placeholder="Paste your script, dialogue, or content here for immediate S&P compliance analysis..."
+            placeholder="Paste your screenplay content here for intelligent context-based S&P compliance analysis...\n\nExample:\nINT. LIVING ROOM - DAY\nRAJ sits on the sofa, smoking a cigarette.\nRAJ: (to himself) This reminds me of that Netflix show...\n\nOur AI analyzes context, meaning, and cultural appropriateness - not just keywords!"
         )
         
         if text_input and st.button("🔍 Analyze Text", type="primary", key="paste_analyze"):
@@ -1274,26 +1434,60 @@ def main():
             display_paste_analysis_results(violations, detected_language, text_input)
     
     # Footer with violation rules
-    with st.expander("📋 S&P Violation Categories Reference"):
-        for rule_name, rule_data in VIOLATION_RULES.items():
-            severity = rule_data['severity']
-            if severity == 'critical':
-                st.error(f"🔴 **{rule_name.replace('_', ' ')}**")
-            elif severity == 'high':
-                st.warning(f"🟠 **{rule_name.replace('_', ' ')}**")
+    with st.expander("📋 S&P Violation Guidelines Reference (24 Context-Based Rules)"):
+        st.markdown("### 🎯 hoichoi Standards & Practices Guidelines")
+        st.markdown("**Our analysis focuses on CONTEXT and MEANING, not just keywords. Each guideline is evaluated based on cultural sensitivity, intent, and appropriateness.**")
+        st.markdown("---")
+        
+        guidelines = [
+            ("1. National Anthem Misuse", "Any commercial or promotional use of the Indian National Anthem", "critical"),
+            ("2. Personal Information Exposure", "Display of actual personal details, real addresses, working phone numbers, genuine email addresses", "high"),
+            ("3. OTT Platform Promotion", "Any mention, promotion, or positive reference to competing streaming platforms", "high"),
+            ("4. National Emblem Misuse", "Using national flag, emblem, or symbols as costumes, props, decoration, or violating Flag Code", "critical"),
+            ("5. National Symbol Distortion", "Incorrect representation, alteration, or distortion of national symbols or Indian map", "critical"),
+            ("6. Hurtful References", "Negative, derogatory, or offensive references to real individuals, organizations, or groups", "medium"),
+            ("7. Self-Harm Graphic Content", "Detailed depiction of self-harm methods that could be instructional rather than suggestive", "critical"),
+            ("8. Acid Attack Depiction", "Any portrayal of acid attacks, including preparation, execution, or aftermath", "critical"),
+            ("9. Bomb/Weapon Instructions", "Step-by-step instructions or educational content about creating explosives or weapons", "critical"),
+            ("10. Harmful Product Instructions", "Content suggesting use of household products, chemicals, or substances for harm", "critical"),
+            ("11. Religious Footwear Context", "Characters wearing footwear inside temples, near religious idols, or in sacred spaces", "high"),
+            ("12. Buddha Idol Misuse", "Using Buddha's image or Buddhist symbols on clothing or in inappropriate contexts", "high"),
+            ("13. Religious Mockery", "Content that ridicules, mocks, or shows disrespect toward religious beliefs or symbols", "critical"),
+            ("14. Caste/Religion References", "Language that reinforces caste hierarchies, religious stereotypes, or discriminatory attitudes", "high"),
+            ("15. Social Evils Promotion", "Content that normalizes harmful social practices without showing consequences", "critical"),
+            ("16. Unauthorized Branding", "Visible brand logos, product names, or commercial endorsements without clearance", "medium"),
+            ("17. Credit List Changes", "Modifications to cast, crew, or production credits after final approval", "medium"),
+            ("18. Alcohol/Cigarette Brands", "Visible alcohol or tobacco brand names, logos, or products without marketing clearance", "high"),
+            ("19. Smoking Disclaimer Missing", "Smoking scenes without appropriate health warnings or disclaimers", "medium"),
+            ("20. Content Disclaimer Missing", "Content requiring viewer discretion warnings without proper disclaimers", "medium"),
+            ("21. Unapproved Endorsements", "Acknowledgments or endorsements in credits that haven't been approved", "medium"),
+            ("22. Animal Harm Depiction", "Content showing actual harm to animals during production or realistic animal suffering", "critical"),
+            ("23. Child Adult Behavior", "Child characters using adult language or exhibiting mature behavior inappropriately", "high"),
+            ("24. Child Abuse Content", "Content depicting, suggesting, or normalizing any form of abuse toward children", "critical")
+        ]
+        
+        for title, description, severity in guidelines:
+            if severity == "critical":
+                st.error(f"🔴 **{title}**")
+            elif severity == "high":
+                st.warning(f"🟠 **{title}**")
             else:
-                st.info(f"🟡 **{rule_name.replace('_', ' ')}**")
+                st.info(f"🟡 **{title}**")
             
-            st.write(rule_data['description'])
-            st.write(f"**Keywords:** {', '.join(rule_data['keywords'])}")
-            st.divider()
+            st.markdown(f"*{description}*")
+            st.markdown("")
+        
+        st.markdown("---")
+        st.markdown("**🎯 Context-Based Analysis:** Our AI analyzes content based on meaning, cultural context, and intent - not just keyword matching.")
+        st.markdown("**📝 Comprehensive Review:** Covers dialogue, scene directions, actions, character names, transitions, and visual cues.")
+        st.markdown("**🌐 Cultural Sensitivity:** Understands Indian cultural norms and broadcasting standards.")
     
     # Footer
     st.markdown("---")
     st.markdown(f"""
     <div style='text-align: center; color: #666; font-size: 0.9em;'>
-        <p>🎬 hoichoi S&P Compliance System | Reviewed by: {st.session_state.get('user_name', 'Unknown')}</p>
-        <p>🔒 Secure access for authorized personnel only | Session logged for security</p>
+        <p>🎬 hoichoi S&P Compliance System v2.0 | Context-Based Analysis | Reviewed by: {st.session_state.get('user_name', 'Unknown')}</p>
+        <p>🔒 Secure access for authorized personnel only | 🎯 Intelligent context analysis | 🌐 Multi-language support</p>
     </div>
     """, unsafe_allow_html=True)
 
