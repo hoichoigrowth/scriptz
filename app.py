@@ -19,6 +19,12 @@ except ImportError:
     OPENAI_AVAILABLE = False
 
 try:
+    import requests
+    MISTRAL_AVAILABLE = True
+except ImportError:
+    MISTRAL_AVAILABLE = False
+
+try:
     from docx import Document
     DOCX_AVAILABLE = True
 except ImportError:
@@ -407,6 +413,66 @@ def get_api_key():
     except:
         return None
 
+def get_mistral_api_key():
+    """Get Mistral API key from Streamlit secrets or user input"""
+    try:
+        return st.secrets.get("MISTRAL_API_KEY", None)
+    except:
+        return None
+
+def detect_language_with_mistral(text_sample, api_key):
+    """Detect language using Mistral API"""
+    if not MISTRAL_AVAILABLE or not api_key:
+        return None
+    
+    try:
+        # Mistral API endpoint for language detection
+        url = "https://api.mistral.ai/v1/chat/completions"
+        
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}"
+        }
+        
+        # Take a sample for language detection
+        sample = text_sample[:1500] if len(text_sample) > 1500 else text_sample
+        
+        payload = {
+            "model": "mistral-tiny",
+            "messages": [
+                {
+                    "role": "system", 
+                    "content": "You are a language detection expert. Identify the primary language of the given text. Return ONLY the language name in English. Common languages include: English, Bengali, Hindi, Tamil, Telugu, Gujarati, Marathi, Punjabi, Urdu, Malayalam, Kannada, Odia, Assamese."
+                },
+                {
+                    "role": "user", 
+                    "content": f"What language is this text primarily written in? Respond with just the language name.\n\nText: {sample}"
+                }
+            ],
+            "max_tokens": 10,
+            "temperature": 0
+        }
+        
+        response = requests.post(url, json=payload, headers=headers, timeout=30)
+        
+        if response.status_code == 200:
+            result = response.json()
+            detected_language = result['choices'][0]['message']['content'].strip()
+            
+            # Validate the detected language
+            valid_languages = ['English', 'Bengali', 'Hindi', 'Tamil', 'Telugu', 'Gujarati', 'Marathi', 'Punjabi', 'Urdu', 'Malayalam', 'Kannada', 'Odia', 'Assamese']
+            if detected_language in valid_languages:
+                return detected_language
+            else:
+                return None
+        else:
+            st.warning(f"Mistral API error: {response.status_code}")
+            return None
+            
+    except Exception as e:
+        st.warning(f"Mistral language detection failed: {e}")
+        return None
+
 def setup_unicode_fonts():
     """Setup Unicode fonts for multilingual PDF support"""
     try:
@@ -418,39 +484,45 @@ def setup_unicode_fonts():
         return False
 
 def detect_language(text_sample):
-    """Detect the primary language of the text using improved AI detection"""
-    api_key = get_api_key()
-    if not OPENAI_AVAILABLE or not api_key:
-        # Fallback language detection without AI
-        return detect_language_fallback(text_sample)
+    """Detect the primary language of the text using Mistral (preferred) or OpenAI"""
+    # Try Mistral first
+    mistral_api_key = get_mistral_api_key()
+    if MISTRAL_AVAILABLE and mistral_api_key:
+        detected = detect_language_with_mistral(text_sample, mistral_api_key)
+        if detected:
+            return detected
     
-    try:
-        client = OpenAI(api_key=api_key)
-        
-        # Take a larger sample for better detection
-        sample = text_sample[:2000] if len(text_sample) > 2000 else text_sample
-        
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "You are a language detection expert. Identify the primary language of the given text. Return ONLY the language name in English. Common languages include: English, Bengali, Hindi, Tamil, Telugu, Gujarati, Marathi, Punjabi, Urdu, Malayalam, Kannada, Odia, Assamese."},
-                {"role": "user", "content": f"What language is this text primarily written in? Respond with just the language name.\n\nText: {sample}"}
-            ],
-            max_tokens=10,
-            temperature=0
-        )
-        
-        detected_language = response.choices[0].message.content.strip()
-        
-        # Validate the detected language
-        valid_languages = ['English', 'Bengali', 'Hindi', 'Tamil', 'Telugu', 'Gujarati', 'Marathi', 'Punjabi', 'Urdu', 'Malayalam', 'Kannada', 'Odia', 'Assamese']
-        if detected_language in valid_languages:
-            return detected_language
-        else:
-            return detect_language_fallback(text_sample)
-        
-    except Exception as e:
-        return detect_language_fallback(text_sample)
+    # Fallback to OpenAI
+    openai_api_key = get_api_key()
+    if OPENAI_AVAILABLE and openai_api_key:
+        try:
+            client = OpenAI(api_key=openai_api_key)
+            
+            # Take a larger sample for better detection
+            sample = text_sample[:2000] if len(text_sample) > 2000 else text_sample
+            
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "You are a language detection expert. Identify the primary language of the given text. Return ONLY the language name in English. Common languages include: English, Bengali, Hindi, Tamil, Telugu, Gujarati, Marathi, Punjabi, Urdu, Malayalam, Kannada, Odia, Assamese."},
+                    {"role": "user", "content": f"What language is this text primarily written in? Respond with just the language name.\n\nText: {sample}"}
+                ],
+                max_tokens=10,
+                temperature=0
+            )
+            
+            detected_language = response.choices[0].message.content.strip()
+            
+            # Validate the detected language
+            valid_languages = ['English', 'Bengali', 'Hindi', 'Tamil', 'Telugu', 'Gujarati', 'Marathi', 'Punjabi', 'Urdu', 'Malayalam', 'Kannada', 'Odia', 'Assamese']
+            if detected_language in valid_languages:
+                return detected_language
+            
+        except Exception as e:
+            pass
+    
+    # Final fallback to character-based detection
+    return detect_language_fallback(text_sample)
 
 def extract_text_from_pdf_bytes(file_bytes):
     """Extract text from uploaded PDF file bytes with page preservation"""
@@ -620,7 +692,87 @@ def has_page_break(para):
         return False
 
 def generate_ai_solution(violation_text, violation_type, explanation, detected_language, api_key):
-    """Generate AI solution for the violation in the detected language based on hybrid analysis"""
+    """Generate AI solution for the violation using Mistral (preferred) or OpenAI"""
+    
+    # Try Mistral first
+    mistral_key = get_mistral_api_key_with_session() if 'get_mistral_api_key_with_session' in globals() else get_mistral_api_key()
+    if MISTRAL_AVAILABLE and mistral_key:
+        try:
+            url = "https://api.mistral.ai/v1/chat/completions"
+            
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {mistral_key}"
+            }
+            
+            # Map violation type to specific guidance
+            guideline_context = {
+                "National_Anthem_Misuse": "Remove commercial use of national anthem; use instrumental version or replace with original music",
+                "Personal_Information_Exposure": "Blur/mask personal information; use fictional phone numbers and addresses",
+                "OTT_Platform_Promotion": "Remove references to competing platforms; replace with generic terms or hoichoi references",
+                "National_Emblem_Misuse": "Remove improper flag usage; ensure respectful display according to Flag Code of India",
+                "National_Symbol_Distortion": "Restore accurate representation of national symbols and Indian map",
+                "Religious_Footwear_Context": "Remove footwear in religious settings; ensure actors are barefoot near idols/temples",
+                "Buddha_Idol_Misuse": "Remove Buddha images from clothing/inappropriate contexts; use respectfully or remove",
+                "Religious_Mockery": "Rewrite dialogue to be respectful of religious beliefs and symbols",
+                "Caste_Religion_References": "Replace with neutral language; avoid caste/community-specific terms",
+                "Social_Evils_Promotion": "Reframe to show negative consequences; don't glorify harmful practices",
+                "Self_Harm_Graphic_Content": "Make suggestive rather than explicit; focus on emotional impact, not graphic details",
+                "Acid_Attack_Depiction": "Remove or significantly tone down; use off-screen treatment",
+                "Child_Adult_Behavior": "Rewrite dialogue age-appropriately; ensure child actors behave naturally",
+                "Child_Abuse_Content": "Remove completely; find alternative plot devices",
+                "Unauthorized_Branding": "Blur visible brand names and logos; use generic alternatives",
+                "Alcohol_Cigarette_Brands": "Blur alcohol/tobacco brands; use generic packaging",
+                "Smoking_Disclaimer_Missing": "Add 'Smoking Kills' disclaimer during smoking scenes",
+                "Animal_Harm_Depiction": "Remove animal harm scenes; use CGI or off-screen treatment"
+            }
+            
+            specific_guidance = guideline_context.get(violation_type, "Revise content to comply with broadcasting standards")
+            
+            prompt = f"""You are an expert content editor for hoichoi digital platform. Generate a compliant revision for this S&P violation.
+
+VIOLATION DETAILS:
+- Type: {violation_type}
+- Problematic Content: "{violation_text}"
+- Issue: {explanation}
+- Content Language: {detected_language}
+- Specific Guidance: {specific_guidance}
+
+INSTRUCTIONS:
+1. Provide a revised version that eliminates the S&P violation completely
+2. Maintain the original creative intent where possible
+3. Keep the same language as the original content ({detected_language})
+4. Ensure the solution is appropriate for Indian digital content standards
+5. Make the minimum necessary changes to achieve compliance
+
+Return ONLY the revised content solution, nothing else."""
+            
+            payload = {
+                "model": "mistral-small",
+                "messages": [
+                    {
+                        "role": "system", 
+                        "content": "You are an expert content editor specializing in S&P compliance for hoichoi digital platform. Provide practical, implementable solutions."
+                    },
+                    {
+                        "role": "user", 
+                        "content": prompt
+                    }
+                ],
+                "max_tokens": 250,
+                "temperature": 0.3
+            }
+            
+            response = requests.post(url, json=payload, headers=headers, timeout=60)
+            
+            if response.status_code == 200:
+                result = response.json()
+                return result['choices'][0]['message']['content'].strip()
+                
+        except Exception as e:
+            pass  # Fall through to OpenAI
+    
+    # Fallback to OpenAI
     if not OPENAI_AVAILABLE or not api_key:
         return "AI solution generation not available"
     
@@ -821,13 +973,109 @@ Return violations in this JSON format:
 
 REMEMBER: Your job is to FIND violations, not to excuse them. Be thorough, be aggressive, be comprehensive. Analyze every element of the screenplay."""
 
-def analyze_chunk(chunk, chunk_num, total_chunks, api_key):
-    """Analyze single chunk with aggressive violation detection"""
-    if not OPENAI_AVAILABLE or not api_key:
+def analyze_chunk_with_mistral(chunk, chunk_num, total_chunks, api_key):
+    """Analyze single chunk with Mistral API"""
+    if not MISTRAL_AVAILABLE or not api_key:
         return {"violations": []}
     
     try:
-        client = OpenAI(api_key=api_key)
+        url = "https://api.mistral.ai/v1/chat/completions"
+        
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}"
+        }
+        
+        prompt = create_analysis_prompt()
+        
+        full_prompt = f"""{prompt}
+
+CONTENT TO ANALYZE (Chunk {chunk_num}/{total_chunks}):
+{chunk}
+
+INSTRUCTIONS:
+1. READ every line carefully
+2. FIND violations in dialogues, scene descriptions, action lines, character names, props, settings
+3. FLAG anything that could violate the 24 guidelines
+4. Be AGGRESSIVE in detection - when in doubt, flag it
+5. Return violations in JSON format
+
+JSON RESPONSE:"""
+        
+        payload = {
+            "model": "mistral-small",
+            "messages": [
+                {
+                    "role": "system", 
+                    "content": "You are an aggressive S&P compliance reviewer. Your job is to FIND violations. Be thorough and flag everything that could potentially violate guidelines. Better to over-detect than miss violations."
+                },
+                {
+                    "role": "user", 
+                    "content": full_prompt
+                }
+            ],
+            "max_tokens": 1500,
+            "temperature": 0.1
+        }
+        
+        response = requests.post(url, json=payload, headers=headers, timeout=90)
+        
+        if response.status_code == 200:
+            result = response.json()
+            content = result['choices'][0]['message']['content'].strip()
+            
+            # Parse JSON response
+            try:
+                parsed_result = json.loads(content)
+            except json.JSONDecodeError:
+                # Try to extract JSON from the response
+                json_match = re.search(r'\{.*\}', content, re.DOTALL)
+                if json_match:
+                    try:
+                        parsed_result = json.loads(json_match.group())
+                    except:
+                        return {"violations": []}
+                else:
+                    return {"violations": []}
+            
+            # Ensure violations are properly formatted
+            if 'violations' in parsed_result and isinstance(parsed_result['violations'], list):
+                valid_violations = []
+                for violation in parsed_result['violations']:
+                    if isinstance(violation, dict) and 'violationText' in violation and 'violationType' in violation:
+                        violation.setdefault('explanation', 'S&P violation detected')
+                        violation.setdefault('suggestedAction', 'Review and modify content')
+                        violation.setdefault('severity', 'medium')
+                        violation.setdefault('location', 'content')
+                        valid_violations.append(violation)
+                
+                return {"violations": valid_violations}
+        else:
+            st.warning(f"Mistral API error: {response.status_code}")
+            return {"violations": []}
+        
+        return {"violations": []}
+        
+    except Exception as e:
+        st.error(f"Error analyzing chunk {chunk_num} with Mistral: {e}")
+        return {"violations": []}
+def analyze_chunk(chunk, chunk_num, total_chunks, api_key=None):
+    """Analyze single chunk with Mistral (preferred) or OpenAI"""
+    
+    # Try Mistral first
+    mistral_api_key = get_mistral_api_key()
+    if MISTRAL_AVAILABLE and mistral_api_key:
+        result = analyze_chunk_with_mistral(chunk, chunk_num, total_chunks, mistral_api_key)
+        if result and result.get('violations'):
+            return result
+    
+    # Fallback to OpenAI
+    openai_api_key = get_api_key() if not api_key else api_key
+    if not OPENAI_AVAILABLE or not openai_api_key:
+        return {"violations": []}
+    
+    try:
+        client = OpenAI(api_key=openai_api_key)
         
         prompt = create_analysis_prompt()
         
@@ -917,10 +1165,22 @@ def find_page_number(violation_text, pages_data):
     
     return 1
 
-def analyze_document(text, pages_data, api_key):
+def analyze_document(text, pages_data, api_key=None):
     """Analyze entire document with aggressive violation detection and better Unicode handling"""
-    if not text or not api_key:
+    if not text:
         return {"violations": [], "summary": {}}
+    
+    # Check available APIs
+    mistral_key = get_mistral_api_key_with_session() if 'get_mistral_api_key_with_session' in globals() else get_mistral_api_key()
+    openai_key = get_api_key() if not api_key else api_key
+    
+    if not mistral_key and not openai_key:
+        st.error("❌ No API keys available for analysis!")
+        return {"violations": [], "summary": {}}
+    
+    # Show which API will be used
+    primary_api = "Mistral" if mistral_key else "OpenAI"
+    st.info(f"🤖 **Primary API for Analysis:** {primary_api}")
     
     # Show text analysis debug info
     st.markdown("### 🔍 **Text Analysis Debug Info**")
@@ -981,7 +1241,7 @@ def analyze_document(text, pages_data, api_key):
             if chunk_unicode > 0:
                 st.success(f"✅ Unicode content detected: {chunk_unicode} characters")
         
-        analysis = analyze_chunk(chunk, i+1, len(chunks), api_key)
+        analysis = analyze_chunk(chunk, i+1, len(chunks))
         
         if 'violations' in analysis and analysis['violations']:
             st.success(f"⚠️ Found {len(analysis['violations'])} violations in chunk {i+1}")
@@ -1016,7 +1276,7 @@ def analyze_document(text, pages_data, api_key):
                     violation.get('violationType', ''),
                     violation.get('explanation', ''),
                     detected_language,
-                    api_key
+                    mistral_key or openai_key
                 )
                 violation['aiSolution'] = ai_solution
                 
@@ -1081,9 +1341,21 @@ def analyze_document(text, pages_data, api_key):
             "chunksWithViolations": successful_chunks,
             "successRate": f"{(successful_chunks/len(chunks)*100):.1f}%" if chunks else "0%",
             "unicodeChars": sum(1 for char in text if ord(char) > 127),
-            "totalChars": len(text)
+            "totalChars": len(text),
+            "primaryAPI": primary_api
         }
     }
+
+def get_mistral_api_key_with_session():
+    """Get Mistral API key with session state support"""
+    # Check session state first
+    if hasattr(st.session_state, 'temp_mistral_key') and st.session_state.temp_mistral_key:
+        return st.session_state.temp_mistral_key
+    # Then check secrets
+    try:
+        return st.secrets.get("MISTRAL_API_KEY", None)
+    except:
+        return None
 
 def generate_excel_report(violations, filename):
     """Generate Excel report with AI solutions - Enhanced Unicode support"""
@@ -1535,7 +1807,7 @@ def main():
     <div class="main-header">
         <h1>🎬 hoichoi S&P Compliance Analyzer</h1>
         <p>Standards & Practices Content Review Platform</p>
-        <p style="font-size: 0.9em; opacity: 0.9;">🔍 Aggressive Detection • 🌐 Enhanced Unicode Support • 24 Guidelines • Multi-language Ready</p>
+        <p style="font-size: 0.9em; opacity: 0.9;">🔍 Aggressive Detection • 🌐 Enhanced Unicode Support • 🤖 Mistral + OpenAI Integration • 24 Guidelines</p>
     </div>
     """, unsafe_allow_html=True)
     
@@ -1603,11 +1875,19 @@ def main():
         
         # System status
         st.markdown("### 🔧 **System Components**")
-        if OPENAI_AVAILABLE:
-            st.success("✅ OpenAI: Available")
-        else:
-            st.error("❌ OpenAI: Missing")
         
+        # API Status
+        if MISTRAL_AVAILABLE:
+            st.success("✅ Mistral API: Available")
+        else:
+            st.error("❌ Mistral API: Library Missing")
+            
+        if OPENAI_AVAILABLE:
+            st.success("✅ OpenAI API: Available")
+        else:
+            st.error("❌ OpenAI API: Missing")
+        
+        # Other components
         if DOCX_AVAILABLE:
             st.success("✅ DOCX Processing: Available")
         else:
@@ -1678,17 +1958,79 @@ def main():
                 del st.session_state[key]
             st.rerun()
     
-    # API Key check
-    api_key = get_api_key()
+    # API Key configuration section
+    st.header("🔑 API Configuration")
     
-    if not api_key:
-        st.warning("⚠️ OpenAI API key not configured!")
-        st.info("Please add OPENAI_API_KEY to Streamlit secrets or environment variables.")
-        api_key = st.text_input("Enter OpenAI API Key", type="password", help="Your OpenAI API key for content analysis")
-        if not api_key:
-            st.stop()
-    else:
-        st.success("🔑 API Key configured")
+    # Check API keys
+    openai_key = get_api_key()
+    mistral_key = get_mistral_api_key()
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("OpenAI Configuration")
+        if openai_key:
+            st.success("✅ OpenAI API Key: Configured")
+        else:
+            st.warning("⚠️ OpenAI API Key: Not configured")
+            openai_input = st.text_input(
+                "Enter OpenAI API Key", 
+                type="password", 
+                help="For violation analysis (fallback)",
+                key="openai_key_input"
+            )
+    
+    with col2:
+        st.subheader("Mistral Configuration (Preferred)")
+        if mistral_key:
+            st.success("✅ Mistral API Key: Configured")
+        else:
+            st.warning("⚠️ Mistral API Key: Not configured")
+            mistral_input = st.text_input(
+                "Enter Mistral API Key", 
+                type="password", 
+                help="For language detection and violation analysis",
+                key="mistral_key_input",
+                placeholder="Enter your Mistral API key here"
+            )
+            if mistral_input:
+                st.session_state.temp_mistral_key = mistral_input
+                st.success("✅ Mistral API Key: Temporarily configured")
+    
+    # API Priority explanation
+    st.info("""
+    **🎯 API Usage Priority:**
+    1. **Mistral API** (Preferred) - Better multilingual support, faster processing
+    2. **OpenAI API** (Fallback) - Used if Mistral unavailable
+    3. **Character-based Detection** (Final fallback) - No API required
+    """)
+    
+    # Update API key functions to check session state
+    def get_mistral_api_key_with_session():
+        # Check session state first
+        if hasattr(st.session_state, 'temp_mistral_key') and st.session_state.temp_mistral_key:
+            return st.session_state.temp_mistral_key
+        # Then check secrets
+        try:
+            return st.secrets.get("MISTRAL_API_KEY", None)
+        except:
+            return None
+    
+    # Use configured APIs
+    working_apis = []
+    if get_mistral_api_key_with_session():
+        working_apis.append("Mistral")
+    if openai_key:
+        working_apis.append("OpenAI")
+    if not working_apis:
+        working_apis.append("Character-based fallback")
+    
+    st.success(f"🚀 **Active APIs:** {', '.join(working_apis)}")
+    
+    # Continue only if at least one API is configured
+    if not get_mistral_api_key_with_session() and not openai_key:
+        st.error("❌ **No API keys configured!** Please add at least one API key to continue.")
+        st.stop()
     
     # Main tabs for upload vs paste
     tab1, tab2 = st.tabs(["📤 Upload Document", "📝 Paste Text"])
@@ -1730,7 +2072,7 @@ def main():
                     
                     # Analyze document
                     st.header("🤖 Analysis in Progress")
-                    analysis = analyze_document(text, pages_data, api_key)
+                    analysis = analyze_document(text, pages_data)
                     
                     # Store results in session state
                     st.session_state.violations_data = {
@@ -1834,7 +2176,7 @@ def main():
             
             # Analyze pasted text
             st.header("🤖 Analyzing Pasted Text")
-            analysis = analyze_document(text_input, pages_data, api_key)
+            analysis = analyze_document(text_input, pages_data)
             
             violations = analysis.get('violations', [])
             detected_language = analysis.get('detectedLanguage', 'Unknown')
