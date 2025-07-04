@@ -60,6 +60,84 @@ MAX_TOKENS_OUTPUT = 1500  # Increased output tokens for more violations
 CHUNK_DELAY = 0.5  # Reduced delay for faster analysis
 MAX_RETRIES = 3
 
+# Unicode text processing functions
+def safe_unicode_text(text):
+    """Safely handle Unicode text for PDF generation"""
+    if not text:
+        return ""
+    
+    try:
+        # Ensure the text is properly encoded as UTF-8
+        if isinstance(text, bytes):
+            text = text.decode('utf-8', errors='replace')
+        elif not isinstance(text, str):
+            text = str(text)
+        
+        # Handle special characters that might cause issues
+        # Replace problematic characters with safe alternatives
+        text = text.replace('\u200b', '')  # Remove zero-width space
+        text = text.replace('\u200c', '')  # Remove zero-width non-joiner
+        text = text.replace('\u200d', '')  # Remove zero-width joiner
+        
+        # For Bengali and other complex scripts, we need to be more careful
+        # Keep the original text but ensure it's properly formatted
+        return text
+    except Exception as e:
+        # Return a safe fallback
+        return str(text).encode('ascii', errors='replace').decode('ascii')
+
+def detect_language_fallback(text_sample):
+    """Fallback language detection using character analysis"""
+    if not text_sample:
+        return "English"
+    
+    # Count characters from different scripts
+    bengali_chars = sum(1 for char in text_sample if '\u0980' <= char <= '\u09FF')
+    hindi_chars = sum(1 for char in text_sample if '\u0900' <= char <= '\u097F')
+    tamil_chars = sum(1 for char in text_sample if '\u0B80' <= char <= '\u0BFF')
+    telugu_chars = sum(1 for char in text_sample if '\u0C00' <= char <= '\u0C7F')
+    gujarati_chars = sum(1 for char in text_sample if '\u0A80' <= char <= '\u0AFF')
+    
+    total_chars = len(text_sample)
+    
+    # If more than 10% of characters are from a specific script, detect that language
+    if bengali_chars > total_chars * 0.1:
+        return "Bengali"
+    elif hindi_chars > total_chars * 0.1:
+        return "Hindi"
+    elif tamil_chars > total_chars * 0.1:
+        return "Tamil"
+    elif telugu_chars > total_chars * 0.1:
+        return "Telugu"
+    elif gujarati_chars > total_chars * 0.1:
+        return "Gujarati"
+    else:
+        return "English"
+
+def get_script_range(char):
+    """Get the script range for a Unicode character"""
+    code = ord(char)
+    if 0x0900 <= code <= 0x097F:
+        return "Devanagari (Hindi)"
+    elif 0x0980 <= code <= 0x09FF:
+        return "Bengali"
+    elif 0x0A00 <= code <= 0x0A7F:
+        return "Gurmukhi (Punjabi)"
+    elif 0x0A80 <= code <= 0x0AFF:
+        return "Gujarati"
+    elif 0x0B00 <= code <= 0x0B7F:
+        return "Oriya"
+    elif 0x0B80 <= code <= 0x0BFF:
+        return "Tamil"
+    elif 0x0C00 <= code <= 0x0C7F:
+        return "Telugu"
+    elif 0x0C80 <= code <= 0x0CFF:
+        return "Kannada"
+    elif 0x0D00 <= code <= 0x0D7F:
+        return "Malayalam"
+    else:
+        return "Other Unicode"
+
 # S&P Violation Rules - Hybrid Context + Keywords Approach
 VIOLATION_RULES = {
     "National_Anthem_Misuse": {
@@ -372,36 +450,7 @@ def detect_language(text_sample):
             return detect_language_fallback(text_sample)
         
     except Exception as e:
-        st.warning(f"AI language detection failed: {e}")
         return detect_language_fallback(text_sample)
-
-def detect_language_fallback(text_sample):
-    """Fallback language detection using character analysis"""
-    if not text_sample:
-        return "English"
-    
-    # Count characters from different scripts
-    bengali_chars = sum(1 for char in text_sample if '\u0980' <= char <= '\u09FF')
-    hindi_chars = sum(1 for char in text_sample if '\u0900' <= char <= '\u097F')
-    tamil_chars = sum(1 for char in text_sample if '\u0B80' <= char <= '\u0BFF')
-    telugu_chars = sum(1 for char in text_sample if '\u0C00' <= char <= '\u0C7F')
-    gujarati_chars = sum(1 for char in text_sample if '\u0A80' <= char <= '\u0AFF')
-    
-    total_chars = len(text_sample)
-    
-    # If more than 10% of characters are from a specific script, detect that language
-    if bengali_chars > total_chars * 0.1:
-        return "Bengali"
-    elif hindi_chars > total_chars * 0.1:
-        return "Hindi"
-    elif tamil_chars > total_chars * 0.1:
-        return "Tamil"
-    elif telugu_chars > total_chars * 0.1:
-        return "Telugu"
-    elif gujarati_chars > total_chars * 0.1:
-        return "Gujarati"
-    else:
-        return "English"
 
 def extract_text_from_pdf_bytes(file_bytes):
     """Extract text from uploaded PDF file bytes with page preservation"""
@@ -1507,37 +1556,50 @@ def main():
         
         # Unicode support status
         st.markdown("### 🌐 **Unicode & Multilingual Support**")
-        unicode_support_status = []
         
         # Check Unicode support
         try:
             test_bengali = "আমি বাংলায় কথা বলি"
             test_hindi = "मैं हिंदी में बात करता हूं"
+            
+            # Test safe text processing
             safe_bengali = safe_unicode_text(test_bengali)
             safe_hindi = safe_unicode_text(test_hindi)
             
-            if safe_bengali and safe_hindi:
+            if safe_bengali and safe_hindi and len(safe_bengali) > 0 and len(safe_hindi) > 0:
                 st.success("✅ Unicode Text Processing: Working")
-                unicode_support_status.append("✅ Unicode Processing")
+                st.write(f"✓ Bengali test: {safe_bengali[:20]}...")
+                st.write(f"✓ Hindi test: {safe_hindi[:20]}...")
             else:
                 st.error("❌ Unicode Text Processing: Issues detected")
-                unicode_support_status.append("❌ Unicode Processing")
+                
         except Exception as e:
             st.error(f"❌ Unicode Processing Error: {e}")
-            unicode_support_status.append("❌ Unicode Processing")
         
         # Check language detection
         try:
             lang_detect = detect_language("আমি বাংলায় কথা বলি")
-            if lang_detect:
+            if lang_detect and lang_detect != "English":
                 st.success(f"✅ Language Detection: Working (Detected: {lang_detect})")
-                unicode_support_status.append("✅ Language Detection")
             else:
-                st.warning("⚠️ Language Detection: Limited functionality")
-                unicode_support_status.append("⚠️ Language Detection")
+                st.warning("⚠️ Language Detection: Using fallback method")
+                # Try fallback detection
+                fallback_lang = detect_language_fallback("আমি বাংলায় কথা বলি")
+                st.write(f"Fallback detected: {fallback_lang}")
+                
         except Exception as e:
             st.error(f"❌ Language Detection Error: {e}")
-            unicode_support_status.append("❌ Language Detection")
+            
+        # Test character analysis
+        try:
+            test_text = "আমি বাংলায় কথা বলি। मैं हिंदी में बात करता हूं।"
+            unicode_count = sum(1 for char in test_text if ord(char) > 127)
+            if unicode_count > 0:
+                st.success(f"✅ Character Analysis: Working ({unicode_count} Unicode chars detected)")
+            else:
+                st.warning("⚠️ Character Analysis: No Unicode detected")
+        except Exception as e:
+            st.error(f"❌ Character Analysis Error: {e}")
         
         # System status
         st.markdown("### 🔧 **System Components**")
@@ -1759,30 +1821,6 @@ def main():
                             st.error("❌ PDF generation failed")
                     except Exception as e:
                         st.error(f"PDF test error: {e}")
-
-def get_script_range(char):
-    """Get the script range for a Unicode character"""
-    code = ord(char)
-    if 0x0900 <= code <= 0x097F:
-        return "Devanagari (Hindi)"
-    elif 0x0980 <= code <= 0x09FF:
-        return "Bengali"
-    elif 0x0A00 <= code <= 0x0A7F:
-        return "Gurmukhi (Punjabi)"
-    elif 0x0A80 <= code <= 0x0AFF:
-        return "Gujarati"
-    elif 0x0B00 <= code <= 0x0B7F:
-        return "Oriya"
-    elif 0x0B80 <= code <= 0x0BFF:
-        return "Tamil"
-    elif 0x0C00 <= code <= 0x0C7F:
-        return "Telugu"
-    elif 0x0C80 <= code <= 0x0CFF:
-        return "Kannada"
-    elif 0x0D00 <= code <= 0x0D7F:
-        return "Malayalam"
-    else:
-        return "Other Unicode"
         
         text_input = st.text_area(
             "Paste your screenplay/script content here",
