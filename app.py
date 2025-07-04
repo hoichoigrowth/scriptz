@@ -1,23 +1,4 @@
-def create_analysis_prompt():
-    """Create aggressive violation detection prompt for comprehensive script analysis"""
-    
-    return """You are an S&P Compliance Reviewer for hoichoi. Your job is to ACTIVELY FIND and FLAG violations in this screenplay/script content. Be thorough and aggressive in detecting violations - err on the side of flagging rather than missing violations.
-
-ANALYZE EVERYTHING: Dialogues, scene descriptions, action lines, character names, props, settings, visual elements, transitions, and any other screenplay content.
-
-🎯 FIND VIOLATIONS IN THESE 24 AREAS:
-
-1. **National Anthem Commercial Use** - Any use of Indian national anthem for commercial/promotional purposes
-2. **Personal Information** - Real phone numbers, addresses, emails, license plates, actual photos
-3. **Competitor Platform Promotion** - Any mention of Netflix, Amazon Prime, Hotstar, Disney+, Zee5, Sony Liv, or other streaming platforms
-4. **National Flag/Emblem Misuse** - Improper use of Indian flag, national symbols, or emblems as props/costumes
-5. **National Symbol Distortion** - Incorrect Indian map, distorted national symbols
-6. **Hurtful Real References** - Negative references to real people, celebrities, organizations, sports teams
-7. **Graphic Self-Harm/Suicide** - Detailed self-harm methods, explicit suicide scenes
-8. **Acid Attack Scenes** - Any depiction of acid attacks
-9. **Weapon/Bomb Instructions** - Detailed instructions for making weapons or explosives
-10. **Harmful Product Instructions** - Using household products like phenyl for harm
-11. **Religious Footwear** - Wearing shoes in temples, near idols,import streamlit as st
+import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -59,6 +40,8 @@ try:
     from reportlab.platypus.flowables import KeepTogether
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.ttfonts import TTFont
+    from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
+    import os
     PDF_AVAILABLE = True
 except ImportError:
     PDF_AVAILABLE = False
@@ -70,11 +53,11 @@ try:
 except ImportError:
     PDF_EXTRACT_AVAILABLE = False
 
-# Configuration
-MAX_CHARS_PER_CHUNK = 4000
-OVERLAP_CHARS = 200
-MAX_TOKENS_OUTPUT = 1000
-CHUNK_DELAY = 1
+# Configuration - Optimized for aggressive violation detection
+MAX_CHARS_PER_CHUNK = 3000  # Smaller chunks for better analysis
+OVERLAP_CHARS = 100  # Reduced overlap
+MAX_TOKENS_OUTPUT = 1500  # Increased output tokens for more violations
+CHUNK_DELAY = 0.5  # Reduced delay for faster analysis
 MAX_RETRIES = 3
 
 # S&P Violation Rules - Hybrid Context + Keywords Approach
@@ -357,32 +340,68 @@ def setup_unicode_fonts():
         return False
 
 def detect_language(text_sample):
-    """Detect the primary language of the text using AI"""
+    """Detect the primary language of the text using improved AI detection"""
     api_key = get_api_key()
     if not OPENAI_AVAILABLE or not api_key:
-        return "English"
+        # Fallback language detection without AI
+        return detect_language_fallback(text_sample)
     
     try:
         client = OpenAI(api_key=api_key)
         
-        # Take a sample of the text for language detection
-        sample = text_sample[:1000] if len(text_sample) > 1000 else text_sample
+        # Take a larger sample for better detection
+        sample = text_sample[:2000] if len(text_sample) > 2000 else text_sample
         
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "You are a language detection expert. Identify the primary language of the given text. Return only the language name in English (e.g., 'Hindi', 'Bengali', 'Tamil', 'English', etc.)."},
-                {"role": "user", "content": f"What language is this text primarily written in? Text: {sample}"}
+                {"role": "system", "content": "You are a language detection expert. Identify the primary language of the given text. Return ONLY the language name in English. Common languages include: English, Bengali, Hindi, Tamil, Telugu, Gujarati, Marathi, Punjabi, Urdu, Malayalam, Kannada, Odia, Assamese."},
+                {"role": "user", "content": f"What language is this text primarily written in? Respond with just the language name.\n\nText: {sample}"}
             ],
             max_tokens=10,
             temperature=0
         )
         
         detected_language = response.choices[0].message.content.strip()
-        return detected_language
         
-    except:
-        return "English"  # Default fallback
+        # Validate the detected language
+        valid_languages = ['English', 'Bengali', 'Hindi', 'Tamil', 'Telugu', 'Gujarati', 'Marathi', 'Punjabi', 'Urdu', 'Malayalam', 'Kannada', 'Odia', 'Assamese']
+        if detected_language in valid_languages:
+            return detected_language
+        else:
+            return detect_language_fallback(text_sample)
+        
+    except Exception as e:
+        st.warning(f"AI language detection failed: {e}")
+        return detect_language_fallback(text_sample)
+
+def detect_language_fallback(text_sample):
+    """Fallback language detection using character analysis"""
+    if not text_sample:
+        return "English"
+    
+    # Count characters from different scripts
+    bengali_chars = sum(1 for char in text_sample if '\u0980' <= char <= '\u09FF')
+    hindi_chars = sum(1 for char in text_sample if '\u0900' <= char <= '\u097F')
+    tamil_chars = sum(1 for char in text_sample if '\u0B80' <= char <= '\u0BFF')
+    telugu_chars = sum(1 for char in text_sample if '\u0C00' <= char <= '\u0C7F')
+    gujarati_chars = sum(1 for char in text_sample if '\u0A80' <= char <= '\u0AFF')
+    
+    total_chars = len(text_sample)
+    
+    # If more than 10% of characters are from a specific script, detect that language
+    if bengali_chars > total_chars * 0.1:
+        return "Bengali"
+    elif hindi_chars > total_chars * 0.1:
+        return "Hindi"
+    elif tamil_chars > total_chars * 0.1:
+        return "Tamil"
+    elif telugu_chars > total_chars * 0.1:
+        return "Telugu"
+    elif gujarati_chars > total_chars * 0.1:
+        return "Gujarati"
+    else:
+        return "English"
 
 def extract_text_from_pdf_bytes(file_bytes):
     """Extract text from uploaded PDF file bytes with page preservation"""
@@ -616,133 +635,145 @@ Return ONLY the revised content solution, nothing else."""
     except Exception as e:
         return f"Error generating solution: {str(e)}"
 
-def chunk_text(text, max_chars=MAX_CHARS_PER_CHUNK):
-    """Split text into analysis chunks while preserving page boundaries"""
+def chunk_text(text, max_chars=3000):  # Reduced chunk size for better analysis
+    """Split text into analysis chunks while preserving screenplay structure"""
     if len(text) <= max_chars:
         return [text]
     
     chunks = []
     
-    # Split by page markers first
-    page_sections = re.split(r'(=== ORIGINAL PAGE \d+ ===)', text)
-    
+    # Split by lines first to preserve screenplay structure
+    lines = text.split('\n')
     current_chunk = ""
     
-    for section in page_sections:
-        if not section.strip():
+    for line in lines:
+        line = line.strip()
+        if not line:
             continue
             
-        # If adding this section would exceed max_chars, save current chunk
-        if len(current_chunk + section) > max_chars and current_chunk:
+        # Check if adding this line would exceed max_chars
+        if len(current_chunk + line + '\n') > max_chars and current_chunk:
+            # Save current chunk
             chunks.append(current_chunk.strip())
-            current_chunk = section
+            current_chunk = line + '\n'
         else:
-            current_chunk += section
+            current_chunk += line + '\n'
     
     # Add remaining chunk
     if current_chunk.strip():
         chunks.append(current_chunk.strip())
     
-    return chunks
+    # Ensure no chunk is too small (merge small chunks)
+    final_chunks = []
+    for chunk in chunks:
+        if len(chunk) < 500 and final_chunks:  # If chunk is too small, merge with previous
+            final_chunks[-1] += '\n\n' + chunk
+        else:
+            final_chunks.append(chunk)
+    
+    return final_chunks
 
 def create_analysis_prompt():
-    """Create hybrid context + keywords S&P compliance analysis prompt"""
+    """Create aggressive violation detection prompt for comprehensive script analysis"""
     
-    # Create keyword reference for the AI
-    keyword_reference = []
-    for rule_name, rule_data in VIOLATION_RULES.items():
-        keyword_reference.append(f"- {rule_name}: {rule_data['description']}")
-        keyword_reference.append(f"  Context: {rule_data['context']}")
-        keyword_reference.append(f"  Keywords: {', '.join(rule_data['keywords'])}")
-        keyword_reference.append(f"  Severity: {rule_data['severity']}")
-        keyword_reference.append("")
-    
-    keyword_ref_str = "\n".join(keyword_reference)
-    
-    return f"""You are a strict Standards & Practices (S&P) Compliance Reviewer for hoichoi digital content platform. You are reviewing a screenplay or script using a HYBRID APPROACH that combines both KEYWORD DETECTION and CONTEXTUAL ANALYSIS for comprehensive violation detection.
+    return """You are an S&P Compliance Reviewer for hoichoi. Your job is to ACTIVELY FIND and FLAG violations in this screenplay/script content. Be thorough and aggressive in detecting violations - err on the side of flagging rather than missing violations.
 
-🎯 HYBRID ANALYSIS APPROACH:
-1. **KEYWORD SCANNING**: Use provided keywords to quickly identify potential violations
-2. **CONTEXTUAL ANALYSIS**: Analyze the meaning, intent, and cultural appropriateness of the content
-3. **COMBINED VALIDATION**: Confirm violations using both keyword presence AND contextual understanding
-4. **COMPREHENSIVE COVERAGE**: Detect both obvious (keyword-based) and subtle (context-based) violations
+ANALYZE EVERYTHING: Dialogues, scene descriptions, action lines, character names, props, settings, visual elements, transitions, and any other screenplay content.
 
-📋 VIOLATION DETECTION GUIDELINES:
-{keyword_ref_str}
+🎯 FIND VIOLATIONS IN THESE 24 AREAS:
 
-🧠 ANALYSIS METHODOLOGY:
+1. **National Anthem Commercial Use** - Any use of Indian national anthem for commercial/promotional purposes
+2. **Personal Information** - Real phone numbers, addresses, emails, license plates, actual photos
+3. **Competitor Platform Promotion** - Any mention of Netflix, Amazon Prime, Hotstar, Disney+, Zee5, Sony Liv, or other streaming platforms
+4. **National Flag/Emblem Misuse** - Improper use of Indian flag, national symbols, or emblems as props/costumes
+5. **National Symbol Distortion** - Incorrect Indian map, distorted national symbols
+6. **Hurtful Real References** - Negative references to real people, celebrities, organizations, sports teams
+7. **Graphic Self-Harm/Suicide** - Detailed self-harm methods, explicit suicide scenes
+8. **Acid Attack Scenes** - Any depiction of acid attacks
+9. **Weapon/Bomb Instructions** - Detailed instructions for making weapons or explosives
+10. **Harmful Product Instructions** - Using household products like phenyl for harm
+11. **Religious Footwear** - Wearing shoes in temples, near idols, religious spaces
+12. **Buddha Idol Misuse** - Buddha images on clothing, inappropriate contexts
+13. **Religious Mockery** - Mocking religious beliefs, symbols, practices
+14. **Caste/Religion Slurs** - Language reinforcing caste hierarchies, religious stereotypes
+15. **Social Evils Promotion** - Glorifying child marriage, dowry, gender discrimination
+16. **Visible Brand Names** - Unblurred product brands, logos, commercial endorsements
+17. **Unauthorized Credits** - Unapproved changes to cast/crew credits
+18. **Alcohol/Tobacco Brands** - Visible alcohol or cigarette brand names/logos
+19. **Missing Smoking Warnings** - Smoking scenes without "Smoking Kills" disclaimer
+20. **Missing Content Warnings** - Violent/sexual content without appropriate disclaimers
+21. **Unapproved Endorsements** - Unauthorized thank-you messages in credits
+22. **Animal Harm** - Actual or realistic animal cruelty, killing, suffering
+23. **Child Inappropriate Behavior** - Children using adult language or mature behavior
+24. **Child Abuse Content** - Any form of child abuse (physical, sexual, psychological)
 
-**STEP 1: KEYWORD DETECTION**
-- Scan for provided keywords as initial flags
-- Keywords help identify potential violation areas quickly
-- Use as starting points for deeper analysis
+🔍 DETECTION STRATEGY:
+- READ EVERY LINE carefully
+- LOOK FOR both obvious and subtle violations
+- CHECK dialogue for inappropriate language/references
+- EXAMINE scene descriptions for problematic content
+- ANALYZE character actions and behaviors
+- REVIEW props, settings, and visual elements
+- FLAG anything that could potentially violate guidelines
 
-**STEP 2: CONTEXTUAL ANALYSIS**
-- Understand the MEANING and INTENT behind the content
-- Consider CULTURAL SENSITIVITY and appropriateness
-- Analyze the OVERALL IMPACT and MESSAGE
-- Look for SUBTLE VIOLATIONS that might not contain obvious keywords
-- Consider the CONTEXT in which words/actions appear
+⚠️ BE AGGRESSIVE IN DETECTION:
+- When in doubt, FLAG IT
+- Better to over-detect than miss violations
+- Look for implied violations, not just explicit ones
+- Consider cultural context and Indian sensitivities
+- Check for subtle discriminatory language
+- Look for brand names, logos, or commercial elements
 
-**STEP 3: VALIDATION**
-- Combine keyword findings with contextual understanding
-- Flag violations that meet BOTH criteria where applicable
-- Flag context-based violations even without keywords
-- Ensure cultural appropriateness and sensitivity
+EXAMPLES OF WHAT TO FLAG:
 
-**EXAMPLES OF HYBRID DETECTION:**
+**Dialogue Examples:**
+- "Let's watch that new show on Netflix tonight"
+- "People from his community are always like that"
+- "Mix phenyl with water and drink it"
+- "She deserves dowry for marrying him"
 
-*Keyword + Context Example:*
-Text: "He walked into the temple wearing his boots"
-- Keywords: "temple", "boots" → Potential Religious_Footwear_Context violation
-- Context: Culturally inappropriate behavior in religious space → CONFIRMED VIOLATION
+**Scene Description Examples:**
+- "Character enters temple wearing shoes"
+- "Close-up of Coca-Cola logo on bottle"
+- "Character hangs Indian flag as curtain"
+- "Buddha statue used as decoration on t-shirt"
 
-*Context-Only Example:*
-Text: "People like him don't belong in our society"
-- Keywords: None directly matching
-- Context: Discriminatory language suggesting caste/community bias → CONFIRMED VIOLATION (Caste_Religion_References)
+**Action Line Examples:**
+- "Character smokes cigarette (no disclaimer shown)"
+- "Animal is actually harmed during fight scene"
+- "Child actor uses profanity"
+- "Character performs detailed self-harm"
 
-*Keyword False Positive Example:*
-Text: "The temple in the movie set was beautiful"
-- Keywords: "temple" → Potential flag
-- Context: Describing a film set, not actual religious space → NO VIOLATION
+📋 ANALYSIS CHECKLIST:
+□ Read every dialogue line
+□ Examine every scene description
+□ Check every character action
+□ Look for brand names/logos
+□ Verify religious/cultural sensitivity
+□ Check for inappropriate child content
+□ Look for discriminatory language
+□ Examine props and settings
+□ Check for competitor platform mentions
+□ Look for missing disclaimers
 
-🎯 CRITICAL ANALYSIS INSTRUCTIONS:
-• **DUAL VALIDATION**: Use both keywords AND context for comprehensive detection
-• **CULTURAL INTELLIGENCE**: Understand Indian cultural norms and sensitivities
-• **INTENT RECOGNITION**: Detect problematic content based on meaning and purpose
-• **COMPREHENSIVE COVERAGE**: Catch both obvious and subtle violations
-• **NO FALSE POSITIVES**: Validate keyword flags with contextual analysis
-• **NO FALSE NEGATIVES**: Detect context-based violations even without keywords
-• **EXACT TEXT EXTRACTION**: Copy violating text EXACTLY as it appears
-• **COMPLETE REVIEW**: Analyze dialogue, scene descriptions, actions, character names, transitions, visual cues
-
-For each violation found:
-• Extract the exact text that violates the guideline
-• Identify the specific violation type from the 24 categories
-• Explain WHY it violates based on BOTH keyword presence and contextual analysis
-• Provide culturally appropriate remediation suggestions
-
-Return ONLY valid JSON format:
-{{
+Return violations in this JSON format:
+{
   "violations": [
-    {{
-      "violationText": "EXACT text from script preserving all formatting",
-      "violationType": "Specific guideline category (e.g., National_Anthem_Misuse, Personal_Information_Exposure, etc.)",
-      "explanation": "Detailed explanation combining keyword detection and contextual analysis of why this violates the guideline",
-      "suggestedAction": "Specific remediation needed",
+    {
+      "violationText": "Exact text from script",
+      "violationType": "One of the 24 violation types",
+      "explanation": "Why this violates the guideline",
+      "suggestedAction": "How to fix it",
       "severity": "critical|high|medium|low",
-      "detectionMethod": "keyword|context|hybrid"
-    }}
+      "location": "dialogue|scene_description|action_line|character_name|prop|setting|other"
+    }
   ]
-}}
+}
 
-If no violations are found, return: {{"violations": []}}
-
-Remember: Use BOTH keyword detection for quick identification AND contextual analysis for comprehensive understanding. This hybrid approach ensures maximum accuracy and coverage."""
+REMEMBER: Your job is to FIND violations, not to excuse them. Be thorough, be aggressive, be comprehensive. Analyze every element of the screenplay."""
 
 def analyze_chunk(chunk, chunk_num, total_chunks, api_key):
-    """Analyze single chunk with OpenAI"""
+    """Analyze single chunk with aggressive violation detection"""
     if not OPENAI_AVAILABLE or not api_key:
         return {"violations": []}
     
@@ -750,52 +781,74 @@ def analyze_chunk(chunk, chunk_num, total_chunks, api_key):
         client = OpenAI(api_key=api_key)
         
         prompt = create_analysis_prompt()
+        
+        # More direct and aggressive prompt
         full_prompt = f"""{prompt}
 
-Content to analyze:
+CONTENT TO ANALYZE (Chunk {chunk_num}/{total_chunks}):
 {chunk}
 
-JSON response only:"""
+INSTRUCTIONS:
+1. READ every line carefully
+2. FIND violations in dialogues, scene descriptions, action lines, character names, props, settings
+3. FLAG anything that could violate the 24 guidelines
+4. Be AGGRESSIVE in detection - when in doubt, flag it
+5. Return violations in JSON format
+
+JSON RESPONSE:"""
         
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "You are an S&P compliance expert. Return only valid JSON."},
+                {"role": "system", "content": "You are an aggressive S&P compliance reviewer. Your job is to FIND violations. Be thorough and flag everything that could potentially violate guidelines. Better to over-detect than miss violations."},
                 {"role": "user", "content": full_prompt}
             ],
             temperature=0.1,
-            max_tokens=MAX_TOKENS_OUTPUT,
-            timeout=60
+            max_tokens=1500,  # Increased token limit
+            timeout=90  # Increased timeout
         )
         
         result = response.choices[0].message.content.strip()
         
-        # Parse JSON with fallback
+        # More robust JSON parsing
         try:
             parsed_result = json.loads(result)
         except json.JSONDecodeError:
-            json_start = result.find('{')
-            json_end = result.rfind('}')
-            if json_start != -1 and json_end != -1:
-                json_text = result[json_start:json_end + 1]
+            # Try to extract JSON from the response
+            json_match = re.search(r'\{.*\}', result, re.DOTALL)
+            if json_match:
                 try:
-                    parsed_result = json.loads(json_text)
+                    parsed_result = json.loads(json_match.group())
                 except:
-                    return {"violations": []}
+                    # If still fails, try to find just the violations array
+                    violations_match = re.search(r'"violations":\s*\[(.*?)\]', result, re.DOTALL)
+                    if violations_match:
+                        try:
+                            parsed_result = {"violations": json.loads(f'[{violations_match.group(1)}]')}
+                        except:
+                            return {"violations": []}
+                    else:
+                        return {"violations": []}
             else:
                 return {"violations": []}
         
-        # Validate violations
-        if 'violations' in parsed_result:
-            enhanced_violations = []
+        # Ensure violations are properly formatted
+        if 'violations' in parsed_result and isinstance(parsed_result['violations'], list):
+            valid_violations = []
             for violation in parsed_result['violations']:
-                violation_text = violation.get('violationText', '').strip()
-                if len(violation_text) >= 10:
-                    enhanced_violations.append(violation)
-            parsed_result['violations'] = enhanced_violations
+                if isinstance(violation, dict):
+                    # Ensure required fields exist
+                    if 'violationText' in violation and 'violationType' in violation:
+                        # Set default values for missing fields
+                        violation.setdefault('explanation', 'S&P violation detected')
+                        violation.setdefault('suggestedAction', 'Review and modify content')
+                        violation.setdefault('severity', 'medium')
+                        violation.setdefault('location', 'content')
+                        valid_violations.append(violation)
+            
+            return {"violations": valid_violations}
         
-        time.sleep(CHUNK_DELAY)
-        return parsed_result
+        return {"violations": []}
         
     except Exception as e:
         st.error(f"Error analyzing chunk {chunk_num}: {e}")
@@ -816,13 +869,43 @@ def find_page_number(violation_text, pages_data):
     return 1
 
 def analyze_document(text, pages_data, api_key):
-    """Analyze entire document with AI solutions"""
+    """Analyze entire document with aggressive violation detection and better Unicode handling"""
     if not text or not api_key:
         return {"violations": [], "summary": {}}
     
-    # Detect language first
+    # Show text analysis debug info
+    st.markdown("### 🔍 **Text Analysis Debug Info**")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Total Characters", len(text))
+    with col2:
+        st.metric("Total Lines", len(text.split('\n')))
+    with col3:
+        unicode_chars = sum(1 for char in text if ord(char) > 127)
+        st.metric("Unicode Characters", unicode_chars)
+    
+    # Show character distribution
+    if unicode_chars > 0:
+        st.info(f"📝 **Unicode Content Detected**: {unicode_chars} non-ASCII characters found")
+        
+        # Show first 200 characters as preview
+        with st.expander("📄 Text Preview (First 200 characters)"):
+            preview_text = text[:200]
+            st.text(preview_text)
+            st.write(f"**Character breakdown**: ASCII: {len(preview_text) - sum(1 for c in preview_text if ord(c) > 127)}, Unicode: {sum(1 for c in preview_text if ord(c) > 127)}")
+    
+    # Detect language with better feedback
     detected_language = detect_language(text)
-    st.info(f"🌐 **Content Language:** {detected_language} | 🔍 **Analysis Method:** Hybrid (Keywords + Context) | 📋 **Coverage:** Complete Screenplay Elements")
+    st.info(f"🌐 **Content Language:** {detected_language} | 🔍 **Analysis Method:** Aggressive Detection | 📋 **Coverage:** Complete Script Analysis")
+    
+    # Show what we're analyzing
+    st.markdown("### 📋 **Analysis Coverage:**")
+    st.markdown("- ✅ **Dialogues**: All character conversations and speech")
+    st.markdown("- ✅ **Scene Descriptions**: Location setups, visual descriptions")
+    st.markdown("- ✅ **Action Lines**: Character actions, movements, behaviors")
+    st.markdown("- ✅ **Character Names**: All character references")
+    st.markdown("- ✅ **Props & Settings**: Objects, locations, visual elements")
+    st.markdown("- ✅ **Transitions**: Scene changes, cuts, fades")
     
     chunks = chunk_text(text)
     all_violations = []
@@ -832,56 +915,111 @@ def analyze_document(text, pages_data, api_key):
     progress_bar = st.progress(0)
     status_text = st.empty()
     
+    st.info(f"🔍 **Analyzing {len(chunks)} chunks** for comprehensive violation detection...")
+    
     for i, chunk in enumerate(chunks):
         progress = (i + 1) / len(chunks)
         progress_bar.progress(progress)
-        status_text.text(f"Analyzing chunk {i+1}/{len(chunks)}...")
+        status_text.text(f"🔍 Analyzing chunk {i+1}/{len(chunks)} - Looking for violations...")
+        
+        # Show chunk analysis info
+        chunk_unicode = sum(1 for char in chunk if ord(char) > 127)
+        chunk_info = f"Chunk {i+1}: {len(chunk)} chars, {chunk_unicode} Unicode chars"
+        
+        # Show chunk preview for debugging
+        with st.expander(f"📄 {chunk_info}"):
+            st.text(chunk[:300] + "..." if len(chunk) > 300 else chunk)
+            if chunk_unicode > 0:
+                st.success(f"✅ Unicode content detected: {chunk_unicode} characters")
         
         analysis = analyze_chunk(chunk, i+1, len(chunks), api_key)
         
-        if 'violations' in analysis:
-            for violation in analysis['violations']:
-                violation['pageNumber'] = find_page_number(violation.get('violationText', ''), pages_data)
+        if 'violations' in analysis and analysis['violations']:
+            st.success(f"⚠️ Found {len(analysis['violations'])} violations in chunk {i+1}")
+            
+            # Show violation details
+            for j, violation in enumerate(analysis['violations']):
+                violation_text = violation.get('violationText', '')
+                violation_unicode = sum(1 for char in violation_text if ord(char) > 127)
+                st.write(f"   → Violation {j+1}: {violation.get('violationType', 'Unknown')} ({len(violation_text)} chars, {violation_unicode} Unicode)")
+                
+                violation['pageNumber'] = find_page_number(violation_text, pages_data)
                 violation['chunkNumber'] = i + 1
                 violation['detectedLanguage'] = detected_language
+                violation['unicodeChars'] = violation_unicode
                 all_violations.append(violation)
             successful_chunks += 1
+        else:
+            st.info(f"✅ No violations found in chunk {i+1}")
     
     # Generate AI solutions for violations
     if all_violations:
-        status_text.text("🤖 Generating AI solutions...")
+        status_text.text("🤖 Generating AI solutions for violations...")
+        solution_errors = 0
+        
         for i, violation in enumerate(all_violations):
             progress = (i + 1) / len(all_violations)
             progress_bar.progress(progress)
             
-            ai_solution = generate_ai_solution(
-                violation.get('violationText', ''),
-                violation.get('violationType', ''),
-                violation.get('explanation', ''),
-                detected_language,
-                api_key
-            )
-            violation['aiSolution'] = ai_solution
+            try:
+                ai_solution = generate_ai_solution(
+                    violation.get('violationText', ''),
+                    violation.get('violationType', ''),
+                    violation.get('explanation', ''),
+                    detected_language,
+                    api_key
+                )
+                violation['aiSolution'] = ai_solution
+                
+                # Check if AI solution has Unicode
+                solution_unicode = sum(1 for char in ai_solution if ord(char) > 127)
+                violation['aiSolutionUnicode'] = solution_unicode
+                
+            except Exception as e:
+                solution_errors += 1
+                violation['aiSolution'] = f"Error generating solution: {str(e)}"
+                violation['aiSolutionUnicode'] = 0
+        
+        if solution_errors > 0:
+            st.warning(f"⚠️ {solution_errors} AI solution generation errors occurred")
     
     progress_bar.progress(1.0)
-    status_text.text("✅ Analysis complete!")
+    status_text.text(f"✅ Analysis complete! Found {len(all_violations)} violations across {len(chunks)} chunks")
     
-    # Remove duplicates
+    # Show Unicode analysis summary
+    if all_violations:
+        total_violation_unicode = sum(v.get('unicodeChars', 0) for v in all_violations)
+        total_solution_unicode = sum(v.get('aiSolutionUnicode', 0) for v in all_violations)
+        
+        st.markdown("### 📊 **Unicode Analysis Summary**")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Total Violations", len(all_violations))
+        with col2:
+            st.metric("Unicode in Violations", total_violation_unicode)
+        with col3:
+            st.metric("Unicode in Solutions", total_solution_unicode)
+    
+    # Remove duplicates but be less aggressive about it
     unique_violations = []
-    seen_texts = set()
+    seen_violations = set()
+    
     for violation in all_violations:
         v_text = violation.get('violationText', '')
-        duplicate_key = (v_text[:100], violation.get('violationType', ''), violation.get('pageNumber', 0))
+        v_type = violation.get('violationType', '')
         
-        if duplicate_key not in seen_texts:
-            seen_texts.add(duplicate_key)
+        # Create a more lenient duplicate detection
+        duplicate_key = (v_text[:50], v_type)  # Only check first 50 chars for similarity
+        
+        if duplicate_key not in seen_violations:
+            seen_violations.add(duplicate_key)
             unique_violations.append(violation)
     
-    # Sort by page and severity
+    # Sort by severity and page
     severity_order = {'critical': 4, 'high': 3, 'medium': 2, 'low': 1}
     unique_violations.sort(key=lambda x: (
-        x.get('pageNumber', 0),
-        -severity_order.get(x.get('severity', 'low'), 1)
+        -severity_order.get(x.get('severity', 'low'), 1),  # Sort by severity first
+        x.get('pageNumber', 0)  # Then by page number
     ))
     
     return {
@@ -891,67 +1029,81 @@ def analyze_document(text, pages_data, api_key):
             "totalViolations": len(unique_violations),
             "totalPages": len(pages_data),
             "chunksAnalyzed": len(chunks),
-            "successfulChunks": successful_chunks,
-            "successRate": f"{(successful_chunks/len(chunks)*100):.1f}%" if chunks else "0%"
+            "chunksWithViolations": successful_chunks,
+            "successRate": f"{(successful_chunks/len(chunks)*100):.1f}%" if chunks else "0%",
+            "unicodeChars": sum(1 for char in text if ord(char) > 127),
+            "totalChars": len(text)
         }
     }
 
 def generate_excel_report(violations, filename):
-    """Generate Excel report with AI solutions"""
+    """Generate Excel report with AI solutions - Enhanced Unicode support"""
     if not EXCEL_AVAILABLE:
+        st.error("Excel generation not available. Please install openpyxl.")
         return None
     
     try:
-        # Create enhanced dataframe with proper column ordering
+        # Create enhanced dataframe with proper Unicode handling
         excel_data = []
-        for violation in violations:
+        for i, violation in enumerate(violations, 1):
+            # Safely handle Unicode text
+            violation_text = safe_unicode_text(violation.get('violationText', 'N/A'))
+            ai_solution = safe_unicode_text(violation.get('aiSolution', 'N/A'))
+            explanation = safe_unicode_text(violation.get('explanation', 'N/A'))
+            suggested_action = safe_unicode_text(violation.get('suggestedAction', 'N/A'))
+            
             excel_data.append({
+                'S.No': i,
                 'Page Number': violation.get('pageNumber', 'N/A'),
                 'Violation Type': violation.get('violationType', 'Unknown'),
                 'Severity': violation.get('severity', 'medium').upper(),
-                'Violated Text': violation.get('violationText', 'N/A'),
-                'Explanation': violation.get('explanation', 'N/A'),
-                'Suggested Action': violation.get('suggestedAction', 'N/A'),
-                'AI Solution': violation.get('aiSolution', 'N/A'),
+                'Violated Text': violation_text,
+                'Explanation': explanation,
+                'Suggested Action': suggested_action,
+                'AI Solution': ai_solution,
                 'Language': violation.get('detectedLanguage', 'Unknown'),
-                'Chunk Number': violation.get('chunkNumber', 'N/A')
+                'Location': violation.get('location', 'content'),
+                'Status': 'PENDING REVIEW'
             })
         
         df = pd.DataFrame(excel_data)
         buffer = io.BytesIO()
         
-        with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+        # Use UTF-8 encoding for Excel
+        with pd.ExcelWriter(buffer, engine='openpyxl', options={'strings_to_urls': False}) as writer:
             df.to_excel(writer, sheet_name='Violations', index=False)
             
             # Summary sheet
             summary_data = {
-                'Metric': ['Total Violations', 'Critical', 'High', 'Medium', 'Low'],
+                'Metric': ['Total Violations', 'Critical', 'High', 'Medium', 'Low', 'Content Language'],
                 'Count': [
                     len(violations),
                     len([v for v in violations if v.get('severity') == 'critical']),
                     len([v for v in violations if v.get('severity') == 'high']),
                     len([v for v in violations if v.get('severity') == 'medium']),
-                    len([v for v in violations if v.get('severity') == 'low'])
+                    len([v for v in violations if v.get('severity') == 'low']),
+                    violations[0].get('detectedLanguage', 'Unknown') if violations else 'Unknown'
                 ]
             }
             summary_df = pd.DataFrame(summary_data)
             summary_df.to_excel(writer, sheet_name='Summary', index=False)
             
-            # Format the sheets
+            # Format the sheets for better readability
             workbook = writer.book
             violation_sheet = workbook['Violations']
             
-            # Auto-adjust column widths
+            # Auto-adjust column widths and handle Unicode
             for column in violation_sheet.columns:
                 max_length = 0
                 column_letter = column[0].column_letter
                 for cell in column:
                     try:
-                        if len(str(cell.value)) > max_length:
-                            max_length = len(str(cell.value))
+                        cell_value = str(cell.value) if cell.value else ""
+                        if len(cell_value) > max_length:
+                            max_length = len(cell_value)
                     except:
                         pass
-                adjusted_width = min(max_length + 2, 50)
+                adjusted_width = min(max_length + 2, 50)  # Cap at 50 characters
                 violation_sheet.column_dimensions[column_letter].width = adjusted_width
         
         buffer.seek(0)
@@ -977,8 +1129,9 @@ def create_unicode_paragraph(text, style, detected_language='English'):
         return Paragraph(str(text).encode('ascii', errors='ignore').decode('ascii'), style)
 
 def generate_violations_report_pdf(violations, filename):
-    """Generate PDF report with violation details and AI solutions - Unicode support"""
+    """Generate PDF report with violation details and AI solutions - Enhanced Unicode support"""
     if not PDF_AVAILABLE:
+        st.error("PDF generation not available. Please install reportlab.")
         return None
     
     try:
@@ -990,20 +1143,21 @@ def generate_violations_report_pdf(violations, filename):
         styles = getSampleStyleSheet()
         story = []
         
-        # Title
+        # Title with better Unicode support
         title_style = ParagraphStyle(
             'CustomTitle',
             parent=styles['Title'],
             fontSize=18,
             spaceAfter=30,
             textColor=Color(0.2, 0.2, 0.6),
-            alignment=1
+            alignment=1,
+            fontName='Helvetica-Bold'
         )
         
         story.append(Paragraph("hoichoi S&P COMPLIANCE VIOLATION REPORT", title_style))
-        story.append(Paragraph(f"Document: {filename}", styles['Normal']))
+        story.append(Paragraph(f"Document: {safe_unicode_text(filename)}", styles['Normal']))
         story.append(Paragraph(f"Analysis Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", styles['Normal']))
-        story.append(Paragraph(f"Reviewed by: {st.session_state.get('user_name', 'Unknown')}", styles['Normal']))
+        story.append(Paragraph(f"Reviewed by: {safe_unicode_text(st.session_state.get('user_name', 'Unknown'))}", styles['Normal']))
         story.append(Paragraph(f"Total Violations: {len(violations)}", styles['Normal']))
         if violations:
             story.append(Paragraph(f"Content Language: {violations[0].get('detectedLanguage', 'Unknown')}", styles['Normal']))
@@ -1019,9 +1173,7 @@ def generate_violations_report_pdf(violations, filename):
         for severity in ['critical', 'high', 'medium', 'low']:
             count = severity_counts.get(severity, 0)
             if count > 0:
-                color = red if severity == 'critical' else orange if severity == 'high' else Color(0.7, 0.7, 0) if severity == 'medium' else Color(0.5, 0.5, 0.5)
-                severity_style = ParagraphStyle('Severity', parent=styles['Normal'], textColor=color, fontSize=12, spaceAfter=6)
-                story.append(Paragraph(f"• {severity.upper()}: {count} violations", severity_style))
+                story.append(Paragraph(f"• {severity.upper()}: {count} violations", styles['Normal']))
         
         story.append(Spacer(1, 20))
         
@@ -1031,81 +1183,86 @@ def generate_violations_report_pdf(violations, filename):
         
         detected_language = violations[0].get('detectedLanguage', 'Unknown') if violations else 'Unknown'
         
+        # Custom styles for better Unicode handling
+        violation_style = ParagraphStyle(
+            'ViolationStyle',
+            parent=styles['Normal'],
+            leftIndent=20,
+            rightIndent=20,
+            spaceBefore=10,
+            spaceAfter=10,
+            borderWidth=1,
+            borderColor=Color(0.8, 0.8, 0.8),
+            backColor=Color(0.98, 0.98, 0.98),
+            fontName='Helvetica'
+        )
+        
         for i, violation in enumerate(violations, 1):
-            # Violation header
-            violation_style = ParagraphStyle(
-                f'Violation{i}',
-                parent=styles['Normal'],
-                leftIndent=20,
-                rightIndent=20,
-                spaceBefore=10,
-                spaceAfter=10,
-                borderWidth=1,
-                borderColor=Color(0.8, 0.8, 0.8),
-                backColor=Color(0.98, 0.98, 0.98)
-            )
-            
             severity = violation.get('severity', 'medium')
-            severity_color = red if severity == 'critical' else orange if severity == 'high' else Color(0.7, 0.7, 0) if severity == 'medium' else Color(0.5, 0.5, 0.5)
             
-            # Safely handle Unicode text
+            # Basic violation info
+            violation_header = f"#{i}<br/>"
+            violation_header += f"Type: {violation.get('violationType', 'Unknown')}<br/>"
+            violation_header += f"Original Page: {violation.get('pageNumber', 'N/A')}<br/>"
+            violation_header += f"Severity: {severity.upper()}<br/>"
+            violation_header += f"Violation Text:<br/>"
+            
+            story.append(Paragraph(violation_header, violation_style))
+            
+            # Handle violation text separately with better Unicode support
             v_text = violation.get('violationText', 'N/A')
-            ai_solution = violation.get('aiSolution', 'N/A')
+            safe_v_text = safe_unicode_text(v_text)
             
-            violation_detail = f"<b>#{i}</b><br/>"
-            violation_detail += f"<b>Type:</b> {violation.get('violationType', 'Unknown')}<br/>"
-            violation_detail += f"<b>Original Page:</b> {violation.get('pageNumber', 'N/A')}<br/>"
-            violation_detail += f"<b>Severity:</b> {severity.upper()}<br/>"
-            violation_detail += f"<b>Violation Text:</b><br/>"
-            
-            # Add violation text as separate paragraph to handle Unicode better
-            story.append(Paragraph(violation_detail, violation_style))
-            
-            # Violation text in red
+            # Create a separate paragraph for the violation text
             violation_text_style = ParagraphStyle(
-                f'ViolationText{i}',
+                'ViolationTextStyle',
                 parent=styles['Normal'],
                 leftIndent=40,
                 rightIndent=40,
                 textColor=red,
                 fontSize=10,
                 spaceBefore=5,
-                spaceAfter=5
+                spaceAfter=5,
+                fontName='Helvetica-Bold'
             )
-            story.append(create_unicode_paragraph(f"「{v_text}」", violation_text_style, detected_language))
             
-            # Continue with other details
-            detail_continuation = f"<b>Explanation:</b> {violation.get('explanation', 'N/A')}<br/>"
-            detail_continuation += f"<b>Suggested Action:</b> {violation.get('suggestedAction', 'N/A')}<br/>"
-            detail_continuation += f"<b>🤖 AI Solution ({detected_language}):</b><br/>"
+            # Try to display the text, fallback to placeholder if Unicode fails
+            try:
+                story.append(Paragraph(f'"{safe_v_text}"', violation_text_style))
+            except:
+                story.append(Paragraph(f'"[Unicode text - {len(v_text)} characters in {detected_language}]"', violation_text_style))
             
-            story.append(Paragraph(detail_continuation, violation_style))
+            # Continue with explanation and solution
+            explanation_text = f"Explanation: {safe_unicode_text(violation.get('explanation', 'N/A'))}<br/>"
+            explanation_text += f"Suggested Action: {safe_unicode_text(violation.get('suggestedAction', 'N/A'))}<br/>"
+            explanation_text += f"AI Solution ({detected_language}):<br/>"
             
-            # AI solution in green
+            story.append(Paragraph(explanation_text, violation_style))
+            
+            # AI solution
+            ai_solution = violation.get('aiSolution', 'N/A')
+            safe_ai_solution = safe_unicode_text(ai_solution)
+            
             ai_solution_style = ParagraphStyle(
-                f'AISolution{i}',
+                'AISolutionStyle',
                 parent=styles['Normal'],
                 leftIndent=40,
                 rightIndent=40,
                 textColor=Color(0, 0.6, 0),
                 fontSize=10,
                 spaceBefore=5,
-                spaceAfter=5
+                spaceAfter=5,
+                fontName='Helvetica'
             )
-            story.append(create_unicode_paragraph(f"✓ {ai_solution}", ai_solution_style, detected_language))
+            
+            try:
+                story.append(Paragraph(f'✓ {safe_ai_solution}', ai_solution_style))
+            except:
+                story.append(Paragraph(f'✓ [AI Solution in {detected_language} - {len(ai_solution)} characters]', ai_solution_style))
             
             # Status
-            status_style = ParagraphStyle(
-                f'Status{i}',
-                parent=styles['Normal'],
-                leftIndent=20,
-                rightIndent=20,
-                textColor=red,
-                fontSize=10,
-                spaceBefore=5,
-                spaceAfter=15
-            )
-            story.append(Paragraph("<b>Status:</b> PENDING REVIEW", status_style))
+            story.append(Paragraph("Status: PENDING REVIEW", styles['Normal']))
+            story.append(Spacer(1, 10))
         
         doc.build(story)
         buffer.seek(0)
@@ -1329,7 +1486,7 @@ def main():
     <div class="main-header">
         <h1>🎬 hoichoi S&P Compliance Analyzer</h1>
         <p>Standards & Practices Content Review Platform</p>
-        <p style="font-size: 0.9em; opacity: 0.9;">🔍 Hybrid Analysis: Keywords + Context • 24 Guidelines • Multi-language Support • Comprehensive Screenplay Review</p>
+        <p style="font-size: 0.9em; opacity: 0.9;">🔍 Aggressive Detection • 🌐 Enhanced Unicode Support • 24 Guidelines • Multi-language Ready</p>
     </div>
     """, unsafe_allow_html=True)
     
@@ -1346,7 +1503,44 @@ def main():
         
         st.divider()
         
-        st.header("🔧 System Status")
+        st.header("🔧 System Status & Unicode Support")
+        
+        # Unicode support status
+        st.markdown("### 🌐 **Unicode & Multilingual Support**")
+        unicode_support_status = []
+        
+        # Check Unicode support
+        try:
+            test_bengali = "আমি বাংলায় কথা বলি"
+            test_hindi = "मैं हिंदी में बात करता हूं"
+            safe_bengali = safe_unicode_text(test_bengali)
+            safe_hindi = safe_unicode_text(test_hindi)
+            
+            if safe_bengali and safe_hindi:
+                st.success("✅ Unicode Text Processing: Working")
+                unicode_support_status.append("✅ Unicode Processing")
+            else:
+                st.error("❌ Unicode Text Processing: Issues detected")
+                unicode_support_status.append("❌ Unicode Processing")
+        except Exception as e:
+            st.error(f"❌ Unicode Processing Error: {e}")
+            unicode_support_status.append("❌ Unicode Processing")
+        
+        # Check language detection
+        try:
+            lang_detect = detect_language("আমি বাংলায় কথা বলি")
+            if lang_detect:
+                st.success(f"✅ Language Detection: Working (Detected: {lang_detect})")
+                unicode_support_status.append("✅ Language Detection")
+            else:
+                st.warning("⚠️ Language Detection: Limited functionality")
+                unicode_support_status.append("⚠️ Language Detection")
+        except Exception as e:
+            st.error(f"❌ Language Detection Error: {e}")
+            unicode_support_status.append("❌ Language Detection")
+        
+        # System status
+        st.markdown("### 🔧 **System Components**")
         if OPENAI_AVAILABLE:
             st.success("✅ OpenAI: Available")
         else:
@@ -1371,6 +1565,42 @@ def main():
             st.success("✅ PDF Generation: Available")
         else:
             st.error("❌ PDF Generation: Missing")
+        
+        # Unicode troubleshooting
+        st.markdown("### 🔍 **Unicode Troubleshooting Guide**")
+        with st.expander("Common Unicode Issues & Solutions"):
+            st.markdown("""
+            **Issue 1: Black blocks (■■■■■) in PDF reports**
+            - **Cause**: PDF generation cannot handle Unicode characters
+            - **Solution**: Use Unicode Test section to verify text handling
+            - **Workaround**: Content will be analyzed correctly; only PDF display is affected
+            
+            **Issue 2: Language detection shows 'English' for non-English content**
+            - **Cause**: OpenAI API issues or text preprocessing problems
+            - **Solution**: Check API key configuration
+            - **Workaround**: Manual language selection (feature to be added)
+            
+            **Issue 3: Violation text not showing properly**
+            - **Cause**: Unicode encoding issues during text extraction
+            - **Solution**: Ensure file is saved with proper encoding
+            - **Workaround**: Use 'Paste Text' method for direct analysis
+            
+            **Issue 4: Missing characters in Excel reports**
+            - **Cause**: Excel export not handling Unicode properly
+            - **Solution**: Download and open in Excel with UTF-8 encoding
+            - **Workaround**: Use PDF reports for better Unicode display
+            """)
+        
+        # Performance recommendations
+        st.markdown("### ⚡ **Performance Recommendations**")
+        st.info("""
+        **For Best Results:**
+        - 📄 **File Size**: Keep scripts under 50 pages for optimal performance
+        - 🔤 **Text Quality**: Ensure clean text extraction (avoid scanned PDFs)
+        - 🌐 **Unicode**: Use Unicode Test section to verify text handling
+        - 🔑 **API Key**: Ensure stable OpenAI API key configuration
+        - 📊 **Reports**: Excel reports work best for data analysis, PDFs for visual review
+        """)
         
         st.divider()
         
@@ -1403,9 +1633,10 @@ def main():
     
     with tab1:
         st.header("📤 Upload Document Analysis")
-        st.markdown("**Upload your screenplay/script for comprehensive hybrid S&P compliance review.**")
-        st.markdown("*🔍 Hybrid Analysis: Combines keyword detection for quick identification + contextual analysis for comprehensive understanding*")
-        st.markdown("*📝 Comprehensive Coverage: Dialogues, Scene Descriptions, Action Lines, Character Names, Transitions, Visual Cues*")
+        st.markdown("**Upload your screenplay/script for comprehensive aggressive S&P compliance review.**")
+        st.markdown("*🔍 Aggressive Detection: We analyze EVERYTHING - dialogues, scene descriptions, action lines, character names, props, settings, transitions*")
+        st.markdown("*⚠️ Better to over-detect than miss violations - we flag anything potentially problematic*")
+        st.markdown("*📋 Complete Coverage: All 24 S&P guidelines checked across entire script*")
         
         # Show current analysis if available
         if st.session_state.analysis_complete and st.session_state.violations_data:
@@ -1455,14 +1686,108 @@ def main():
     
     with tab2:
         st.header("📝 Paste Text Analysis")
-        st.markdown("**Paste your screenplay content for comprehensive hybrid S&P compliance review.**")
-        st.markdown("*🔍 Hybrid Analysis: Keyword detection + contextual understanding for maximum accuracy*")
-        st.markdown("*📝 Comprehensive Review: All screenplay elements analyzed for violations and cultural appropriateness*")
+        st.markdown("**Paste your screenplay content for comprehensive aggressive S&P compliance review.**")
+        st.markdown("*🔍 Aggressive Detection: We examine every line for potential violations*")
+        st.markdown("*⚠️ Thorough Analysis: Dialogues, scene descriptions, actions, character behavior, props, settings*")
+        
+        # Add Unicode test section
+        with st.expander("🔧 Unicode Test & Debug"):
+            st.markdown("**Test Unicode handling with sample Bengali text:**")
+            
+            sample_bengali = "আমি বাংলায় কথা বলি। এটি একটি পরীক্ষা।"
+            sample_hindi = "मैं हिंदी में बात करता हूं। यह एक परीक्षा है।"
+            
+            test_text = st.text_area(
+                "Test Unicode Text",
+                value=sample_bengali,
+                height=100,
+                help="Paste any Unicode text here to test detection and handling"
+            )
+            
+            if test_text:
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Total Characters", len(test_text))
+                with col2:
+                    unicode_count = sum(1 for char in test_text if ord(char) > 127)
+                    st.metric("Unicode Characters", unicode_count)
+                with col3:
+                    detected_lang = detect_language(test_text)
+                    st.write(f"**Detected Language:** {detected_lang}")
+                
+                # Show character analysis
+                st.markdown("**Character Analysis:**")
+                char_analysis = {}
+                for char in test_text:
+                    if ord(char) > 127:
+                        script_range = get_script_range(char)
+                        char_analysis[script_range] = char_analysis.get(script_range, 0) + 1
+                
+                if char_analysis:
+                    for script, count in char_analysis.items():
+                        st.write(f"- {script}: {count} characters")
+                
+                # Test safe text handling
+                st.markdown("**Safe Text Processing:**")
+                safe_text = safe_unicode_text(test_text)
+                st.text(f"Safe text: {safe_text}")
+                
+                # Test PDF generation
+                if st.button("🔧 Test PDF Generation"):
+                    try:
+                        test_violations = [{
+                            'violationText': test_text,
+                            'violationType': 'Test_Unicode',
+                            'explanation': 'Testing Unicode handling in PDF',
+                            'suggestedAction': 'No action needed - this is a test',
+                            'severity': 'low',
+                            'pageNumber': 1,
+                            'detectedLanguage': detected_lang,
+                            'aiSolution': f"Test solution in {detected_lang}"
+                        }]
+                        
+                        pdf_data = generate_violations_report_pdf(test_violations, "Unicode_Test.pdf")
+                        if pdf_data:
+                            st.success("✅ PDF generation successful!")
+                            st.download_button(
+                                label="📄 Download Test PDF",
+                                data=pdf_data,
+                                file_name="unicode_test.pdf",
+                                mime="application/pdf"
+                            )
+                        else:
+                            st.error("❌ PDF generation failed")
+                    except Exception as e:
+                        st.error(f"PDF test error: {e}")
+
+def get_script_range(char):
+    """Get the script range for a Unicode character"""
+    code = ord(char)
+    if 0x0900 <= code <= 0x097F:
+        return "Devanagari (Hindi)"
+    elif 0x0980 <= code <= 0x09FF:
+        return "Bengali"
+    elif 0x0A00 <= code <= 0x0A7F:
+        return "Gurmukhi (Punjabi)"
+    elif 0x0A80 <= code <= 0x0AFF:
+        return "Gujarati"
+    elif 0x0B00 <= code <= 0x0B7F:
+        return "Oriya"
+    elif 0x0B80 <= code <= 0x0BFF:
+        return "Tamil"
+    elif 0x0C00 <= code <= 0x0C7F:
+        return "Telugu"
+    elif 0x0C80 <= code <= 0x0CFF:
+        return "Kannada"
+    elif 0x0D00 <= code <= 0x0D7F:
+        return "Malayalam"
+    else:
+        return "Other Unicode"
         
         text_input = st.text_area(
             "Paste your screenplay/script content here",
             height=300,
-            placeholder="Paste your screenplay content here for hybrid S&P compliance analysis...\n\nExample:\nINT. LIVING ROOM - DAY\nRAJ sits on the sofa, smoking a cigarette.\nRAJ: (to himself) This reminds me of that Netflix show...\n\nOur hybrid AI uses both keyword detection and context analysis for comprehensive violation detection!"
+            placeholder="Paste your screenplay content here for aggressive S&P compliance analysis...\n\nINT. LIVING ROOM - DAY\n\nRAJ sits on the sofa.\n\nRAJ\n(dialogue here)\nHello, how are you?\n\nPRIYA enters the room.\n\nPRIYA\nI'm fine, thanks.\n\nOur AI will analyze every element for potential violations!"
         )
         
         if text_input and st.button("🔍 Analyze Text", type="primary", key="paste_analyze"):
@@ -1480,54 +1805,70 @@ def main():
             display_paste_analysis_results(violations, detected_language, text_input)
     
     # Footer with violation rules
-    with st.expander("📋 S&P Violation Guidelines Reference (24 Hybrid Context + Keywords Rules)"):
+    with st.expander("📋 S&P Violation Guidelines Reference (24 Aggressive Detection Rules)"):
         st.markdown("### 🎯 hoichoi Standards & Practices Guidelines")
-        st.markdown("**Our analysis uses a HYBRID APPROACH combining keyword detection for quick identification and contextual analysis for comprehensive understanding.**")
+        st.markdown("**Our system uses AGGRESSIVE DETECTION to find violations across your entire screenplay. We analyze every element thoroughly.**")
         st.markdown("---")
         
-        for rule_name, rule_data in VIOLATION_RULES.items():
+        st.markdown("### 🔍 **What We Analyze:**")
+        st.markdown("""
+        - **📝 Dialogues**: Every line of character speech
+        - **🎬 Scene Descriptions**: Location setups, visual descriptions
+        - **🎭 Action Lines**: Character movements, behaviors, actions
+        - **👥 Character Names**: All character references and mentions
+        - **🎪 Props & Settings**: Objects, locations, visual elements
+        - **🎞️ Transitions**: Scene changes, cuts, fades, directions
+        """)
+        
+        st.markdown("### ⚠️ **24 Violation Categories We Detect:**")
+        
+        for i, (rule_name, rule_data) in enumerate(VIOLATION_RULES.items(), 1):
             severity = rule_data['severity']
             if severity == "critical":
-                st.error(f"🔴 **{rule_name.replace('_', ' ')}**")
+                st.error(f"🔴 **{i}. {rule_name.replace('_', ' ')}**")
             elif severity == "high":
-                st.warning(f"🟠 **{rule_name.replace('_', ' ')}**")
+                st.warning(f"🟠 **{i}. {rule_name.replace('_', ' ')}**")
             else:
-                st.info(f"🟡 **{rule_name.replace('_', ' ')}**")
+                st.info(f"🟡 **{i}. {rule_name.replace('_', ' ')}**")
             
             st.markdown(f"**Description:** {rule_data['description']}")
             st.markdown(f"**Context:** {rule_data['context']}")
             st.markdown(f"**Keywords:** {', '.join(rule_data['keywords'])}")
             st.markdown("---")
         
-        st.markdown("### 🔍 **Hybrid Analysis Method**")
+        st.markdown("### 🎯 **Detection Philosophy**")
         st.markdown("""
-        **Step 1: Keyword Detection** - Quick identification of potential violations using targeted keywords
+        **✅ Better to Over-Detect than Miss Violations**
+        - We flag anything that could potentially be problematic
+        - When in doubt, we flag it for your review
+        - Comprehensive analysis of all screenplay elements
         
-        **Step 2: Context Analysis** - Deep understanding of meaning, intent, and cultural appropriateness
+        **🔍 Multi-Method Detection**
+        - Keyword scanning for quick identification
+        - Context analysis for subtle violations
+        - Cultural sensitivity checks
+        - Intent and meaning analysis
         
-        **Step 3: Validation** - Combining both approaches for accurate violation detection
-        
-        **Benefits:**
-        - ✅ **No False Negatives**: Catches subtle violations without obvious keywords
-        - ✅ **No False Positives**: Validates keyword flags with contextual analysis
-        - ✅ **Comprehensive Coverage**: Detects both obvious and nuanced violations
-        - ✅ **Cultural Intelligence**: Understands Indian cultural norms and sensitivities
+        **📋 Complete Coverage**
+        - No element of your screenplay is ignored
+        - Every dialogue line is examined
+        - Every scene description is analyzed
+        - Every action and prop is checked
         """)
         
-        st.markdown("**📝 Comprehensive Review:** Covers dialogue, scene directions, actions, character names, transitions, and visual cues.")
-        st.markdown("**🌐 Cultural Sensitivity:** Understands Indian cultural norms and broadcasting standards.")
+        st.markdown("**📝 Result:** Comprehensive violation detection across your entire screenplay with detailed solutions for each issue found.")
     
     # Footer
     st.markdown("---")
     st.markdown(f"""
     <div style='text-align: center; color: #666; font-size: 0.9em;'>
-        <p>🎬 hoichoi S&P Compliance System v2.0 | Hybrid Analysis (Keywords + Context) | Reviewed by: {st.session_state.get('user_name', 'Unknown')}</p>
-        <p>🔒 Secure access for authorized personnel only | 🔍 Comprehensive hybrid analysis | 🌐 Multi-language support</p>
+        <p>🎬 hoichoi S&P Compliance System v2.1 | Enhanced Unicode Support | Reviewed by: {st.session_state.get('user_name', 'Unknown')}</p>
+        <p>🔒 Secure access • 🔍 Aggressive violation detection • 🌐 Bengali/Hindi/Multi-language support • 📊 Comprehensive reporting</p>
     </div>
     """, unsafe_allow_html=True)
 
 def display_analysis_results(violations_data, filename):
-    """Display analysis results with download buttons that don't reset the page"""
+    """Display analysis results with aggressive detection feedback"""
     violations = violations_data['violations']
     summary = violations_data['summary']
     detected_language = violations_data['detected_language']
@@ -1535,20 +1876,26 @@ def display_analysis_results(violations_data, filename):
     pages_data = violations_data['pages_data']
     
     # Results
-    st.header("📊 Analysis Results")
+    st.header("📊 Aggressive Analysis Results")
+    
+    # Show detection summary
+    st.info(f"🔍 **Detection Summary**: Analyzed {summary.get('chunksAnalyzed', 0)} chunks, found violations in {summary.get('chunksWithViolations', 0)} chunks")
     
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.metric("Total Violations", summary.get('totalViolations', 0))
+        st.metric("Total Violations Found", summary.get('totalViolations', 0))
     with col2:
         critical_count = len([v for v in violations if v.get('severity') == 'critical'])
-        st.metric("🔴 Critical", critical_count)
+        st.metric("🔴 Critical Issues", critical_count)
     with col3:
-        st.metric("📄 Pages", summary.get('totalPages', 0))
+        st.metric("📄 Pages Analyzed", summary.get('totalPages', 0))
     with col4:
-        st.metric("✅ Success Rate", summary.get('successRate', '0%'))
+        st.metric("✅ Detection Rate", summary.get('successRate', '0%'))
     
     if violations:
+        # Show detection effectiveness
+        st.success(f"✅ **Aggressive Detection Successful**: Found {len(violations)} violations across your screenplay")
+        
         # Charts
         st.subheader("📈 Violation Analytics")
         fig_severity, fig_types = create_violation_charts(violations)
@@ -1563,21 +1910,21 @@ def display_analysis_results(violations_data, filename):
                 st.plotly_chart(fig_types, use_container_width=True)
         
         # Violation details with AI solutions
-        st.subheader(f"🚨 Violations with AI Solutions ({detected_language})")
-        st.markdown("*Detected using hybrid analysis: keyword detection + contextual understanding*")
+        st.subheader(f"🚨 Detected Violations with AI Solutions ({detected_language})")
+        st.markdown("*Each violation detected through comprehensive script analysis*")
         
-        for i, violation in enumerate(violations[:10]):  # Show first 10
+        for i, violation in enumerate(violations[:15]):  # Show first 15
             display_violation_details(violation, i+1, detected_language)
         
-        if len(violations) > 10:
-            st.info(f"Showing first 10 of {len(violations)} total violations")
+        if len(violations) > 15:
+            st.info(f"Showing first 15 of {len(violations)} total violations detected")
         
         # Download Reports Section
-        st.subheader("📥 Download Reports")
+        st.subheader("📥 Download Comprehensive Reports")
         
         # Generate reports (cached to avoid regeneration)
         if 'reports_generated' not in st.session_state:
-            with st.spinner("Generating reports..."):
+            with st.spinner("Generating comprehensive reports..."):
                 excel_data = generate_excel_report(violations, filename)
                 violations_pdf = generate_violations_report_pdf(violations, filename)
                 highlighted_pdf = generate_highlighted_text_pdf(text, violations, filename)
@@ -1598,7 +1945,7 @@ def display_analysis_results(violations_data, filename):
                 st.download_button(
                     label="📊 Excel Report",
                     data=reports['excel'],
-                    file_name=f"{filename}_analysis.xlsx",
+                    file_name=f"{filename}_violations_detected.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     key="excel_download"
                 )
@@ -1608,7 +1955,7 @@ def display_analysis_results(violations_data, filename):
                 st.download_button(
                     label="📋 Violations Report",
                     data=reports['violations_pdf'],
-                    file_name=f"{filename}_violations.pdf",
+                    file_name=f"{filename}_violations_report.pdf",
                     mime="application/pdf",
                     key="violations_download"
                 )
@@ -1616,17 +1963,18 @@ def display_analysis_results(violations_data, filename):
         with col3:
             if reports['highlighted_pdf']:
                 st.download_button(
-                    label="🎨 Highlighted Text",
+                    label="🎨 Highlighted Script",
                     data=reports['highlighted_pdf'],
-                    file_name=f"{filename}_highlighted.pdf",
+                    file_name=f"{filename}_highlighted_violations.pdf",
                     mime="application/pdf",
                     key="highlighted_download"
                 )
         
-        st.info("📋 **Reports Available:** Excel spreadsheet with detailed analysis, PDF violation summary, and highlighted text version")
+        st.info(f"📋 **Reports Generated:** Excel with {len(violations)} violations, PDF violation summary, and highlighted script with flagged content")
     
     else:
-        st.success("🎉 No violations found! Content appears to comply with S&P standards.")
+        st.success("🎉 No violations detected! Your content appears to comply with S&P standards.")
+        st.info("📋 **Note**: Our aggressive detection system analyzed your entire screenplay and found no violations against the 24 S&P guidelines.")
         st.balloons()
 
 def display_violation_details(violation, index, detected_language):
