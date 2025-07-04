@@ -60,15 +60,62 @@ try:
 except ImportError:
     PDF_EXTRACT_AVAILABLE = False
 
-# FIX 1: Add OCR support for images
+# FIX 1: Add OCR support for images - ENHANCED DEBUG VERSION
+OCR_AVAILABLE = False
+OCR_ERROR_MESSAGE = ""
+
+try:
+    from PIL import Image
+    print("✅ PIL/Pillow imported successfully")
+except ImportError as e:
+    OCR_ERROR_MESSAGE += f"❌ PIL/Pillow import failed: {e}\n"
+    print(f"❌ PIL/Pillow import failed: {e}")
+
+try:
+    import pytesseract
+    print("✅ pytesseract imported successfully")
+except ImportError as e:
+    OCR_ERROR_MESSAGE += f"❌ pytesseract import failed: {e}\n"
+    print(f"❌ pytesseract import failed: {e}")
+
+try:
+    import cv2
+    print("✅ OpenCV imported successfully")
+except ImportError as e:
+    OCR_ERROR_MESSAGE += f"❌ OpenCV import failed: {e}\n"
+    print(f"❌ OpenCV import failed: {e}")
+
+try:
+    import numpy as np
+    print("✅ NumPy imported successfully")
+except ImportError as e:
+    OCR_ERROR_MESSAGE += f"❌ NumPy import failed: {e}\n"
+    print(f"❌ NumPy import failed: {e}")
+
+# Set OCR_AVAILABLE to True only if ALL imports succeed
 try:
     from PIL import Image
     import pytesseract
     import cv2
     import numpy as np
     OCR_AVAILABLE = True
-except ImportError:
+    print("✅ All OCR dependencies imported successfully")
+except ImportError as e:
     OCR_AVAILABLE = False
+    OCR_ERROR_MESSAGE += f"❌ Final OCR import check failed: {e}\n"
+    print(f"❌ Final OCR import check failed: {e}")
+
+# Test Tesseract binary availability
+if OCR_AVAILABLE:
+    try:
+        version = pytesseract.get_tesseract_version()
+        print(f"✅ Tesseract version: {version}")
+    except Exception as e:
+        OCR_AVAILABLE = False
+        OCR_ERROR_MESSAGE += f"❌ Tesseract binary not found: {e}\n"
+        print(f"❌ Tesseract binary not found: {e}")
+        print("💡 Install Tesseract OCR binary from: https://github.com/UB-Mannheim/tesseract/wiki")
+
 
 # Configuration - Optimized for aggressive violation detection
 MAX_CHARS_PER_CHUNK = 3000  # Smaller chunks for better analysis
@@ -2075,11 +2122,41 @@ def main():
         except Exception as e:
             st.error(f"❌ Character Analysis Error: {e}")
         
-        # OCR status
+        # OCR status - ENHANCED DEBUG VERSION
+        st.markdown("### 🔍 **OCR Support Status**")
         if OCR_AVAILABLE:
             st.success("✅ OCR Support: Available")
+            try:
+                version = pytesseract.get_tesseract_version()
+                st.write(f"✓ Tesseract version: {version}")
+                
+                # Test language support
+                languages = pytesseract.get_languages()
+                if 'ben' in languages:
+                    st.write("✓ Bengali language support: Available")
+                else:
+                    st.warning("⚠️ Bengali language support: Not installed")
+                
+                st.write(f"✓ Supported languages: {', '.join(languages[:10])}...")
+                
+            except Exception as e:
+                st.error(f"❌ Tesseract configuration issue: {e}")
         else:
-            st.error("❌ OCR Support: Missing (install PIL, pytesseract, opencv-python)")
+            st.error("❌ OCR Support: Missing")
+            if OCR_ERROR_MESSAGE:
+                with st.expander("🔍 Detailed Error Information"):
+                    st.text(OCR_ERROR_MESSAGE)
+                    st.markdown("""
+                    **Fix Steps:**
+                    1. Install Python packages: `pip install pytesseract opencv-python`
+                    2. Install Tesseract binary:
+                       - Windows: Download from https://github.com/UB-Mannheim/tesseract/wiki
+                       - Ubuntu: `sudo apt install tesseract-ocr tesseract-ocr-ben`
+                       - macOS: `brew install tesseract`
+                    3. Restart your Streamlit app
+                    """)
+            else:
+                st.info("Install required packages: `pip install pytesseract opencv-python`")
         
         # System status
         st.markdown("### 🔧 **System Components**")
