@@ -1759,7 +1759,7 @@ def create_unicode_paragraph(text, style, detected_language='English'):
         return Paragraph(str(text).encode('ascii', errors='ignore').decode('ascii'), style)
 
 def generate_violations_report_pdf(violations, filename):
-    """Generate PDF report without HTML span tags - FIXED"""
+    """Generate PDF report with ACTUAL Bengali text - FINAL FIX"""
     if not PDF_AVAILABLE:
         st.error("PDF generation not available. Please install reportlab.")
         return None
@@ -1782,7 +1782,7 @@ def generate_violations_report_pdf(violations, filename):
             fontName='Helvetica-Bold'
         )
         
-        story.append(Paragraph("hoichoi S&P COMPLIANCE VIOLATION REPORT - FIXED", title_style))
+        story.append(Paragraph("hoichoi S&P COMPLIANCE VIOLATION REPORT", title_style))
         story.append(Paragraph(f"Document: {filename}", styles['Normal']))
         story.append(Paragraph(f"Analysis Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", styles['Normal']))
         story.append(Paragraph(f"Total Violations: {len(violations)}", styles['Normal']))
@@ -1803,7 +1803,7 @@ def generate_violations_report_pdf(violations, filename):
         story.append(Spacer(1, 20))
         
         # Detailed violations
-        story.append(Paragraph("DETECTED VIOLATIONS", styles['Heading1']))
+        story.append(Paragraph("DETECTED VIOLATIONS WITH ACTUAL TEXT", styles['Heading1']))
         story.append(Spacer(1, 10))
         
         # Custom styles for violations
@@ -1823,40 +1823,38 @@ def generate_violations_report_pdf(violations, filename):
         for i, violation in enumerate(violations, 1):
             severity = violation.get('severity', 'medium')
             
-            # FIXED: Simple text without HTML spans
+            # Basic violation info
             violation_header = f"#{i} - {violation.get('violationType', 'Unknown')}"
             violation_header += f" (Page {violation.get('pageNumber', 'N/A')})"
             violation_header += f" - Severity: {severity.upper()}"
             
             story.append(Paragraph(violation_header, violation_style))
             
-            # FIXED: Handle Bengali text properly for PDF
+            # FIXED: Show ACTUAL Bengali text, not placeholders
             v_text = violation.get('violationText', 'N/A')
-            bengali_chars = sum(1 for char in v_text if '\u0980' <= char <= '\u09FF')
             
-            if bengali_chars > 0:
-                # For Bengali text, show a safe representation
-                display_text = f"[Bengali Content: {len(v_text)} characters, {bengali_chars} Bengali characters]"
-                story.append(Paragraph(f"Violated Text: {display_text}", styles['Normal']))
-                # Also show the original text as hex representation for reference
-                story.append(Paragraph(f"Original Text (first 50 chars): {v_text[:50]}...", styles['Normal']))
-            else:
-                # For English text, show normally
+            try:
+                # Try to show the actual text - let ReportLab handle it
                 story.append(Paragraph(f"Violated Text: {v_text}", styles['Normal']))
+            except Exception as e:
+                # Only if ReportLab completely fails, show both versions
+                safe_text = ''.join(char if ord(char) < 128 else '?' for char in v_text)
+                story.append(Paragraph(f"Violated Text (ASCII): {safe_text}", styles['Normal']))
+                story.append(Paragraph(f"Original Text: {v_text[:200]}...", styles['Normal']))
             
             story.append(Paragraph(f"Explanation: {violation.get('explanation', 'N/A')}", styles['Normal']))
             
-            # FIXED: Handle Bengali AI solution
+            # FIXED: Show ACTUAL Bengali AI solution
             ai_solution = violation.get('aiSolution', 'N/A')
-            solution_bengali = sum(1 for char in ai_solution if '\u0980' <= char <= '\u09FF')
             
-            if solution_bengali > 0:
-                solution_display = f"[AI Solution in Bengali: {len(ai_solution)} characters]"
-                story.append(Paragraph(f"AI Solution: {solution_display}", styles['Normal']))
-                # Show first 50 chars for reference
-                story.append(Paragraph(f"Solution Preview: {ai_solution[:50]}...", styles['Normal']))
-            else:
+            try:
+                # Try to show the actual solution - let ReportLab handle it
                 story.append(Paragraph(f"AI Solution: {ai_solution}", styles['Normal']))
+            except Exception as e:
+                # Only if ReportLab completely fails, show both versions
+                safe_solution = ''.join(char if ord(char) < 128 else '?' for char in ai_solution)
+                story.append(Paragraph(f"AI Solution (ASCII): {safe_solution}", styles['Normal']))
+                story.append(Paragraph(f"Original Solution: {ai_solution[:200]}...", styles['Normal']))
             
             story.append(Paragraph(f"Suggested Action: {violation.get('suggestedAction', 'N/A')}", styles['Normal']))
             story.append(Spacer(1, 10))
@@ -1871,6 +1869,135 @@ def generate_violations_report_pdf(violations, filename):
 
 # FIXED: PDF generation without HTML spans
 def generate_highlighted_text_pdf(text, violations, filename):
+    """Generate PDF with ACTUAL Bengali text highlighting - FINAL FIX"""
+    if not PDF_AVAILABLE:
+        return None
+    
+    try:
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=72, leftMargin=72, topMargin=72, bottomMargin=18)
+        
+        styles = getSampleStyleSheet()
+        story = []
+        
+        # Title
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=styles['Title'],
+            fontSize=18,
+            spaceAfter=30,
+            textColor=Color(0.2, 0.2, 0.6),
+            alignment=1
+        )
+        
+        story.append(Paragraph("hoichoi S&P COMPLIANCE - SCRIPT WITH VIOLATIONS", title_style))
+        story.append(Paragraph(f"Document: {filename}", styles['Normal']))
+        story.append(Spacer(1, 20))
+        
+        # Create violation mapping
+        violation_map = {}
+        for violation in violations:
+            v_text = violation.get('violationText', '').strip()
+            severity = violation.get('severity', 'medium').lower()
+            
+            if v_text and len(v_text) >= 3:
+                violation_map[v_text] = {
+                    'severity': severity,
+                    'type': violation.get('violationType', 'Unknown')
+                }
+        
+        # Process text with ACTUAL text
+        story.append(Paragraph("SCRIPT CONTENT WITH MARKED VIOLATIONS", styles['Heading1']))
+        story.append(Spacer(1, 10))
+        
+        # Split text into paragraphs
+        paragraphs = text.split('\n')
+        
+        for para_text in paragraphs:
+            if para_text.strip():
+                # Check for original page markers
+                if '=== ORIGINAL PAGE' in para_text:
+                    page_match = re.search(r'=== ORIGINAL PAGE (\d+) ===', para_text)
+                    if page_match:
+                        page_num = page_match.group(1)
+                        page_style = ParagraphStyle(
+                            'PageMarker',
+                            parent=styles['Heading3'],
+                            textColor=Color(0.5, 0.5, 0.5),
+                            alignment=1,
+                            spaceBefore=20,
+                            spaceAfter=10
+                        )
+                        story.append(Paragraph(f"— Original Page {page_num} —", page_style))
+                    continue
+                
+                # Check for violations in this paragraph
+                has_violation = False
+                violation_severity = None
+                for v_text, v_info in violation_map.items():
+                    if v_text in para_text:
+                        has_violation = True
+                        violation_severity = v_info['severity']
+                        break
+                
+                # Show ACTUAL text with violation marking
+                if has_violation:
+                    # Create violation paragraph style based on severity
+                    if violation_severity == 'critical':
+                        bg_color = Color(1, 0.9, 0.9)  # Light red
+                        border_color = Color(1, 0, 0)   # Red border
+                    elif violation_severity == 'high':
+                        bg_color = Color(1, 0.95, 0.8)  # Light orange
+                        border_color = Color(1, 0.5, 0) # Orange border
+                    elif violation_severity == 'medium':
+                        bg_color = Color(1, 1, 0.9)     # Light yellow
+                        border_color = Color(1, 1, 0)   # Yellow border
+                    else:
+                        bg_color = Color(0.95, 0.9, 1)  # Light purple
+                        border_color = Color(0.5, 0, 1) # Purple border
+                    
+                    violation_para_style = ParagraphStyle(
+                        'ViolationPara',
+                        parent=styles['Normal'],
+                        spaceBefore=6,
+                        spaceAfter=6,
+                        leftIndent=10,
+                        rightIndent=10,
+                        backColor=bg_color,
+                        borderWidth=2,
+                        borderColor=border_color,
+                        borderPadding=5
+                    )
+                    
+                    # FIXED: Show ACTUAL text, not placeholders
+                    try:
+                        display_text = para_text[:1000] + "..." if len(para_text) > 1000 else para_text
+                        story.append(Paragraph(f"VIOLATION [{violation_severity.upper()}]: {display_text}", violation_para_style))
+                    except Exception as e:
+                        safe_text = ''.join(char if ord(char) < 128 else '?' for char in para_text)
+                        safe_text = safe_text[:800] + "..." if len(safe_text) > 800 else safe_text
+                        story.append(Paragraph(f"VIOLATION [{violation_severity.upper()}] (ASCII): {safe_text}", violation_para_style))
+                        story.append(Paragraph(f"Original Unicode: {para_text[:300]}...", styles['Normal']))
+                else:
+                    # Normal paragraph - show actual text
+                    try:
+                        display_text = para_text[:800] + "..." if len(para_text) > 800 else para_text
+                        story.append(Paragraph(display_text, styles['Normal']))
+                    except Exception as e:
+                        safe_text = ''.join(char if ord(char) < 128 else '?' for char in para_text)
+                        safe_text = safe_text[:600] + "..." if len(safe_text) > 600 else safe_text
+                        story.append(Paragraph(safe_text, styles['Normal']))
+                        story.append(Paragraph(f"[Unicode: {para_text[:150]}...]", styles['Normal']))
+                
+                story.append(Spacer(1, 2))
+        
+        doc.build(story)
+        buffer.seek(0)
+        return buffer.getvalue()
+        
+    except Exception as e:
+        st.error(f"Error generating highlighted text PDF: {e}")
+        return None
     """Generate PDF with original text and highlighted violations - FIXED VERSION"""
     if not PDF_AVAILABLE:
         return None
